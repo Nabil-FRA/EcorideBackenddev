@@ -1,0 +1,13 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Edit Covoiturage{% endblock %}
+
+{% block body %}
+    <h1>Edit Covoiturage</h1>
+
+    {{ include('covoiturage/_form.html.twig', {'button_label': 'Update'}) }}
+
+    <a href="{{ path('app_covoiturage_index') }}">back to list</a>
+
+    {{ include('covoiturage/_delete_form.html.twig') }}
+{% endblock %}

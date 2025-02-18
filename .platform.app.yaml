@@ -17,6 +17,18 @@ runtime:
 # Variables spécifiques à l'application, à définir si nécessaire
 variables:
   # Aucune variable spécifique définie pour l'instant
+mysql:
+        host: "mysql.platformsh.site"
+        port: 3306
+        user: "root"
+        password: "my-secret-password"  # Remplace par un mot de passe sécurisé
+        database: "ecoride"  # Remplace par le nom de ta base de données MySQL
+mongodb:
+        host: "mongodb.platformsh.site"
+        port: 27017
+        user: "root"
+        password: "mongodb-password"  # Remplace par un mot de passe MongoDB sécurisé
+        database: "ecoride"  # Remplace par le nom de ta base de données MongoDB
 
 build:
     flavor: none

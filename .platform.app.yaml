@@ -46,8 +46,8 @@ web:
 
 mounts:
     "/var/cache": { source: local, source_path: var/cache }
-    "/data/mysql": { source: service, source_name: mysql }
-    "/data/mongodb": { source: service, source_name: mongodb }
+    "/data/mysql": { source: service, source_path: mysql }
+    "/data/mongodb": { source: service, source_path: mongodb }
     
 
 hooks:

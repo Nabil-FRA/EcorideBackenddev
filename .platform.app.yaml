@@ -35,6 +35,7 @@ hooks:
         set -x -e
         curl -fs https://get.symfony.com/cloud/configurator | bash
         NODE_VERSION=22 symfony-build
+        php -m
 
     deploy: |
         set -x -e

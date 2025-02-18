@@ -10,6 +10,8 @@ runtime:
         - ctype
         - iconv
         - mongodb
+        - pdo
+        - pdo_mysql
         
 
 #variables:

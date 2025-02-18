@@ -32,7 +32,7 @@ mounts:
 
 relationships:
   database:
-    - "dbmysql:mysql"
+    - "database:mysql"
 
 hooks:
     build: |

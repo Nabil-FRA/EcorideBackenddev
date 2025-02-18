@@ -14,11 +14,10 @@ runtime:
         - pdo_mysql
         - pdo_pgsql
 
-# Variables spécifiques à l'application, à définir si nécessaire
+# Variables spécifiques à l'application
 variables:
-  env: "production"
-
-flavor: none
+  env:
+    APP_ENV: "production"
 
 disk: 1024
 
@@ -31,7 +30,6 @@ web:
 
 mounts:
     "/var/cache": { source: local, source_path: var/cache }
-   
 
 hooks:
     build: |
@@ -46,7 +44,7 @@ hooks:
 crons:
     security-check:
         spec: '50 23 * * *'
-        cmd: if [ "$PLATFORM_ENVIRONMENT_TYPE" = "production" ]; then croncape COMPOSER_ROOT_VERSION=1.0.0 COMPOSER_AUDIT_ABANDONED=ignore composer audit --no-cache; fi
+        cmd: if [ "$PLATFORM_ENVIRONMENT_TYPE" = "production" ]; then COMPOSER_ROOT_VERSION=1.0.0 COMPOSER_AUDIT_ABANDONED=ignore composer audit --no-cache; fi
     clean-expired-sessions:
         spec: '17,47 * * * *'
-        cmd: croncape php-session-clean
+        cmd: php-session-clean

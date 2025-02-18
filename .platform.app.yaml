@@ -31,7 +31,8 @@ mounts:
     "/var/cache": { source: local, source_path: var/cache }
 
 relationships:
-    database:"database:mysql"
+  database:
+    - "dbmysql:mysql"
 
 hooks:
     build: |

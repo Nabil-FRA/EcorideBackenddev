@@ -22,7 +22,7 @@ mysql:
         password: "Ca123-1000@*"  
         database: "ecoride"  
 
-    mongodb:
+mongodb:
         host: "mongodb.platformsh.site"
         port: 27017
         user: "root"

@@ -12,7 +12,6 @@ runtime:
         - mongodb
         - pdo
         - pdo_mysql
-        - pdo_pgsql
 
 # Variables spécifiques à l'application
 variables:

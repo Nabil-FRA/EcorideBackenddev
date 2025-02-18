@@ -12,6 +12,7 @@ runtime:
         - mongodb
         - pdo
         - pdo_mysql
+        - pdo_pgsql
 
 # Variables spécifiques à l'application, à définir si nécessaire
 variables:
@@ -31,8 +32,7 @@ web:
 
 mounts:
     "/var/cache": { source: local, source_path: var/cache }
-    "/data/mysql": { source: service, service: mysql }
-    "/data/mongodb": { source: service, service: mongodb }
+   
 
 hooks:
     build: |

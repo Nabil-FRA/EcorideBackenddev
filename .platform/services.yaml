@@ -1,1 +1,9 @@
+services:
+  mysql:
+    type: "mysql:8.0"  # Choisis la version que tu préfères
+    disk: 1024         # Ajuste la taille du disque si nécessaire
+
+  mongodb:
+    type: "mongodb:4.4"  # Version MongoDB
+    disk: 1024           # Taille du disque pour MongoDB
 

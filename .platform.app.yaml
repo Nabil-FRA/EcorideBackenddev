@@ -14,7 +14,20 @@ runtime:
         - pdo_mysql
         
 
-#variables:
+variables:
+mysql:
+        host: "mysql.platformsh.site"
+        port: 3306
+        user: "root"
+        password: "Ca123-1000@*"  
+        database: "ecoride"  
+
+    mongodb:
+        host: "mongodb.platformsh.site"
+        port: 27017
+        user: "root"
+        password: "Ca123-1000@*"  
+        database: "ecoride"  
 #    php:
 #        # uncomment on PHP 7.4+
 #        #opcache.preload: config/preload.php
@@ -33,6 +46,8 @@ web:
 
 mounts:
     "/var/cache": { source: local, source_path: var/cache }
+    "/data/mysql": { source: service, source_name: mysql }
+    "/data/mongodb": { source: service, source_name: mongodb }
     
 
 hooks:

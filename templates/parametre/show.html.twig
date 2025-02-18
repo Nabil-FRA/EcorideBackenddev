@@ -1,0 +1,30 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Parametre{% endblock %}
+
+{% block body %}
+    <h1>Parametre</h1>
+
+    <table class="table">
+        <tbody>
+            <tr>
+                <th>Id</th>
+                <td>{{ parametre.id }}</td>
+            </tr>
+            <tr>
+                <th>Propriete</th>
+                <td>{{ parametre.propriete }}</td>
+            </tr>
+            <tr>
+                <th>Valeur</th>
+                <td>{{ parametre.valeur }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <a href="{{ path('app_parametre_index') }}">back to list</a>
+
+    <a href="{{ path('app_parametre_edit', {'id': parametre.id}) }}">edit</a>
+
+    {{ include('parametre/_delete_form.html.twig') }}
+{% endblock %}

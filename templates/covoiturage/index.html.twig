@@ -1,0 +1,51 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Covoiturage index{% endblock %}
+
+{% block body %}
+    <h1>Covoiturage index</h1>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Date_depart</th>
+                <th>Heure_depart</th>
+                <th>Lieu_depart</th>
+                <th>Date_arrivee</th>
+                <th>Heure_arrivee</th>
+                <th>Lieu_arrivee</th>
+                <th>Statut</th>
+                <th>Nb_place</th>
+                <th>Prix_personne</th>
+                <th>actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for covoiturage in covoiturages %}
+            <tr>
+                <td>{{ covoiturage.id }}</td>
+                <td>{{ covoiturage.dateDepart ? covoiturage.dateDepart|date('Y-m-d') : '' }}</td>
+                <td>{{ covoiturage.heureDepart ? covoiturage.heureDepart|date('H:i:s') : '' }}</td>
+                <td>{{ covoiturage.lieuDepart }}</td>
+                <td>{{ covoiturage.dateArrivee ? covoiturage.dateArrivee|date('Y-m-d') : '' }}</td>
+                <td>{{ covoiturage.heureArrivee ? covoiturage.heureArrivee|date('H:i:s') : '' }}</td>
+                <td>{{ covoiturage.lieuArrivee }}</td>
+                <td>{{ covoiturage.statut }}</td>
+                <td>{{ covoiturage.nbPlace }}</td>
+                <td>{{ covoiturage.prixPersonne }}</td>
+                <td>
+                    <a href="{{ path('app_covoiturage_show', {'id': covoiturage.id}) }}">show</a>
+                    <a href="{{ path('app_covoiturage_edit', {'id': covoiturage.id}) }}">edit</a>
+                </td>
+            </tr>
+        {% else %}
+            <tr>
+                <td colspan="11">no records found</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+
+    <a href="{{ path('app_covoiturage_new') }}">Create new</a>
+{% endblock %}

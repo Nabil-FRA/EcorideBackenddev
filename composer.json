@@ -7,18 +7,18 @@
         "php": ">=8.2",
         "ext-ctype": "*",
         "ext-iconv": "*",
-        "api-platform/doctrine-orm": "^4.0",
-        "api-platform/symfony": "^4.0",
-        "doctrine/dbal": "^3.9.3",
-        "doctrine/doctrine-bundle": "^2.13.1",
-        "doctrine/doctrine-migrations-bundle": "^3.3.1",
-        "doctrine/mongodb-odm": "*",
-        "doctrine/orm": "^3.3.1",
+        "api-platform/doctrine-orm": "^4.0.17",
+        "api-platform/symfony": "^4.0.17",
+        "doctrine/dbal": "^3.9.4",
+        "doctrine/doctrine-bundle": "^2.13.2",
+        "doctrine/doctrine-migrations-bundle": "^3.4.1",
+        "doctrine/mongodb-odm": ">=2.10.1",
+        "doctrine/orm": "^3.3.2",
         "mongodb/mongodb": "^1.20",
-        "nelmio/api-doc-bundle": "^4.36.1",
+        "nelmio/api-doc-bundle": "^4.37.1",
         "nelmio/cors-bundle": "^2.5",
-        "phpdocumentor/reflection-docblock": "^5.6",
-        "phpstan/phpdoc-parser": "^2.0",
+        "phpdocumentor/reflection-docblock": "^5.6.1",
+        "phpstan/phpdoc-parser": "^2.0.2",
         "symfony/asset": "7.2.*",
         "symfony/console": "7.2.*",
         "symfony/dotenv": "7.2.*",
@@ -37,9 +37,10 @@
         "symfony/twig-bundle": "7.2.*",
         "symfony/validator": "7.2.*",
         "symfony/yaml": "7.2.*",
-        "twig/extra-bundle": "^2.12|^3.0",
-        "twig/twig": "^2.12|^3.0",
-        "zircote/swagger-php": "^5.0"
+        "twig/extra-bundle": "^2.12|^3.20",
+        "twig/twig": "^2.12|^3.20",
+        "zircote/swagger-php": "^5.0.3",
+        "ext-mongodb": "*"
     },
     "config": {
         "allow-plugins": {
@@ -93,10 +94,10 @@
     },
     "require-dev": {
         "doctrine/doctrine-fixtures-bundle": "^4.0",
-        "phpunit/phpunit": "^9.5",
+        "phpunit/phpunit": "^9.6.22",
         "symfony/browser-kit": "7.2.*",
         "symfony/css-selector": "7.2.*",
-        "symfony/maker-bundle": "^1.61",
+        "symfony/maker-bundle": "^1.62.1",
         "symfony/phpunit-bridge": "^7.2"
     }
 }

@@ -14,7 +14,7 @@
         "doctrine/doctrine-migrations-bundle": "^3.4.1",
         "doctrine/mongodb-odm": "^2.10.1",
         "doctrine/orm": "^3.3.2",
-        "mongodb/mongodb": "^1.20",
+        "mongodb/mongodb": "^1.19",
         "nelmio/api-doc-bundle": "^4.37.1",
         "nelmio/cors-bundle": "^2.5",
         "phpdocumentor/reflection-docblock": "^5.6.1",

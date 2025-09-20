@@ -30,15 +30,19 @@ class MongoController extends AbstractController
     }
     
     #[Route('/mongo/confirmation_covoiturage', name: 'confirmation_covoiturage', methods: ['GET'])]
-    public function historiqueCovoiturage(): Response
-    {
-        $client = new MongoDBClient("mongodb://localhost:27017");
-        $collection = $client->EcoRide->participations;
+    public function historiqueCovoiturage(MongoDBService $mongoDBService): Response
+{
+    // 1. Utiliser le service pour obtenir la connexion à la bonne base de données 
+    $db = $mongoDBService->getDatabase();
 
-        $historique = $collection->find()->toArray();
+    // 2. Sélectionner la collection "participations"
+    $collection = $db->selectCollection('participations');
 
-        return $this->json($historique);
-    }
+    // 3. Récupérer les données et les renvoyer en JSON
+    $historique = $collection->find()->toArray();
+
+    return $this->json($historique);
+}
 }
 
 

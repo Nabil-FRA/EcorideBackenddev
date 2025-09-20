@@ -5,17 +5,18 @@ namespace App\Controller;
 use App\Entity\Covoiturage;
 use App\Entity\Participe;
 use App\Entity\Utilisateur;
+use App\Service\MongoDBService; // <-- AJOUT IMPORTANT
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
-use MongoDB\Client as MongoDBClient;
-
+// La ligne "use MongoDB\Client as MongoDBClient;" a été supprimée car elle n'est plus nécessaire
 
 class ParticipationController extends AbstractController
-{   #[Route('/api/covoiturage/{id}/participer', name: 'covoiturage_participer', methods: ['POST'])]
-    public function participer(int $id, EntityManagerInterface $entityManager, Request $request): Response
+{
+    #[Route('/api/covoiturage/{id}/participer', name: 'covoiturage_participer', methods: ['POST'])]
+    public function participer(int $id, EntityManagerInterface $entityManager, Request $request, MongoDBService $mongoDBService): Response // <-- AJOUT DU SERVICE ICI
     {
         $utilisateur = $this->getUser();
         if (!$utilisateur) {
@@ -56,10 +57,10 @@ class ParticipationController extends AbstractController
         $entityManager->flush();
 
         // ---------------------------
-        // Enregistrement dans MongoDB
+        // Enregistrement dans MongoDB (Version Corrigée)
         // ---------------------------
-        $client = new MongoDBClient("mongodb://localhost:27017");
-        $collection = $client->EcoRide->participations;
+        $db = $mongoDBService->getDatabase();
+        $collection = $db->selectCollection('participations');
 
         $participationData = [
             'utilisateur' => [

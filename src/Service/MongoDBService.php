@@ -8,9 +8,8 @@ use Psr\Log\LoggerInterface;
 /**
  * Service de connexion à MongoDB pour l'application Ecoride
  * Version FINALE pour Heroku + Fixie + MongoDB Atlas
- * SSL simplifié pour éviter les erreurs de handshake
- * 
- * @author Nabil
+ * SSL/TLS corrigé pour forcer TLS 1.2 et assurer une connexion sécurisée
+ * * @author Nabil
  */
 class MongoDBService
 {
@@ -22,26 +21,25 @@ class MongoDBService
 
     /**
      * Constructeur du service MongoDB
-     * 
-     * @param string $uri Chaîne de connexion MongoDB (mongodb+srv://...)
+     * * @param string $uri Chaîne de connexion MongoDB (mongodb+srv://...)
      * @param string $database Nom de la base de données
      * @param LoggerInterface|null $logger Service de logging (optionnel)
      */
     public function __construct(
-        string $uri, 
-        string $database, 
+        string $uri,
+        string $database,
         ?LoggerInterface $logger = null
     ) {
-        // Ajouter automatiquement les timeouts et paramètres SSL pour Heroku/Fixie
+        // Ajouter automatiquement les timeouts et paramètres pour Heroku
         $this->uri = $this->addHerokuFixieParams($uri);
         $this->databaseName = $database;
         $this->logger = $logger;
-        
+
         if ($this->logger) {
-            $this->logger->info('MongoDBService initialized (Heroku+Fixie Final)', [
+            $this->logger->info('MongoDBService initialized (Heroku+Fixie Final Corrected)', [
                 'database' => $database,
                 'uri_prefix' => substr($this->uri, 0, 50) . '...',
-                'ssl_relaxed' => true,
+                'tls_enforced' => '1.2',
                 'fixie_optimized' => true
             ]);
         }
@@ -49,21 +47,20 @@ class MongoDBService
 
     /**
      * Ajoute tous les paramètres nécessaires pour Heroku + Fixie
-     * 
-     * @param string $uri URI originale
+     * * @param string $uri URI originale
      * @return string URI optimisée
      */
     private function addHerokuFixieParams(string $uri): string
     {
         $separator = strpos($uri, '?') !== false ? '&' : '?';
-        
+
         // Paramètres essentiels
         $essentialParams = [
             'retryWrites=true',
             'w=majority',
             'appName=Ecoride-Heroku-Fixie-Final'
         ];
-        
+
         // Timeouts étendus
         $timeoutParams = [
             'connectTimeoutMS=90000',      // 90s (Fixie + latence)
@@ -71,25 +68,17 @@ class MongoDBService
             'serverSelectionTimeoutMS=60000' // 60s
         ];
         
-        // Paramètres SSL RELAXÉS pour Heroku/Fixie
-        $sslParams = [
-            'ssl=true',                    // Forcer SSL
-            'sslallowinvalidcertificates=true', // Accepter certificats invalides
-            'sslallowinvalidhostnames=true',    // Accepter noms d'hôtes invalides
-            'sslverifyclientcertificate=false'  // Ne pas vérifier le certificat client
-        ];
-        
-        // Tous les paramètres ensemble
-        $allParams = array_merge($essentialParams, $timeoutParams, $sslParams);
-        
+        // ✅ NOTE: Les options SSL dangereuses et inutiles ont été supprimées.
+        // La configuration TLS est maintenant gérée via les driverOptions dans la méthode connect().
+        $allParams = array_merge($essentialParams, $timeoutParams);
+
         return $uri . $separator . implode('&', $allParams);
     }
 
     /**
      * Retourne la base de données MongoDB
      * Crée la connexion si elle n'existe pas
-     * 
-     * @return \MongoDB\Database
+     * * @return \MongoDB\Database
      * @throws \RuntimeException Si la connexion échoue
      */
     public function getDatabase(): \MongoDB\Database
@@ -97,71 +86,70 @@ class MongoDBService
         if ($this->database === null) {
             $this->connect();
         }
-        
+
         return $this->database;
     }
 
     /**
      * Établit la connexion à MongoDB
-     * VERSION FINALE : SSL relaxé + timeouts max + pas de test complexe
-     * 
-     * @throws \RuntimeException Si la connexion échoue
+     * VERSION FINALE CORRIGÉE : Force TLS 1.2 pour la compatibilité avec Atlas
+     * * @throws \RuntimeException Si la connexion échoue
      */
     private function connect(): void
     {
         $startTime = microtime(true);
-        
+
         try {
             if ($this->logger) {
-                $this->logger->info('Establishing MongoDB connection (Heroku+Fixie Final)', [
+                $this->logger->info('Establishing MongoDB connection (Final Corrected with TLS 1.2)', [
                     'uri_prefix' => substr($this->uri, 0, 40) . '...',
                     'database' => $this->databaseName,
-                    'ssl_relaxed' => true,
-                    'connect_timeout' => 90,
-                    'socket_timeout' => 120
+                    'tls_version_forced' => '1.2'
                 ]);
             }
 
-            // === CONNEXION FINALE ===
-            // URI avec SSL relaxé + timeouts max
-            // Pas de driverOptions complexes, pas de runCommand
-            $this->client = new Client($this->uri);
-            
+            // === ✅ CONNEXION SÉCURISÉE ET CORRIGÉE ===
+            // Options du driver pour forcer l'utilisation de TLS 1.2, requis par MongoDB Atlas.
+            // Ceci résout les erreurs de "TLS handshake failed".
+            $driverOptions = [
+                'tls' => true, // S'assurer que TLS est bien activé
+                'tlsContext' => [
+                    // Forcer la version minimale du protocole à TLS 1.2
+                    'min_tls_version' => \STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT,
+                ],
+            ];
+
+            // Instanciation du client avec l'URI ET les options de driver.
+            $this->client = new Client($this->uri, [], $driverOptions);
+
             // Sélection de la base de données
             $this->database = $this->client->selectDatabase($this->databaseName);
-            
-            // Test ULTRA-MINIMAL : juste vérifier que la DB existe
+
+            // Test minimal pour confirmer que la connexion est bien établie
             $this->minimalConnectionTest();
-            
+
             // === CONNEXION RÉUSSIE ===
             $connectionTime = round((microtime(true) - $startTime) * 1000, 2);
-            
+
             if ($this->logger) {
-                $this->logger->info('MongoDB connection established successfully (FINAL)', [
+                $this->logger->info('MongoDB connection established successfully (FINAL Corrected)', [
                     'database' => $this->databaseName,
                     'connection_time_ms' => $connectionTime,
-                    'client_class' => get_class($this->client),
-                    'database_class' => get_class($this->database),
-                    'ssl_relaxed_used' => true,
-                    'status' => 'success_final'
+                    'status' => 'success_final_corrected'
                 ]);
             }
-            
         } catch (\MongoDB\Driver\Exception\ConnectionTimeoutException $e) {
             $errorMsg = 'MongoDB connection timeout (90s) - Network connectivity issue Heroku ↔ Atlas';
             $this->logError($errorMsg, $e, $startTime);
             throw new \RuntimeException($errorMsg, 0, $e);
-            
         } catch (\MongoDB\Driver\Exception\ServerSelectionTimeoutException $e) {
-            $errorMsg = 'MongoDB server selection timeout (60s) - Atlas cluster unreachable';
+            $errorMsg = 'MongoDB server selection timeout (60s) - Atlas cluster unreachable or TLS issue';
             $this->logError($errorMsg, $e, $startTime);
             throw new \RuntimeException($errorMsg, 0, $e);
-            
         } catch (\MongoDB\Driver\Exception\AuthenticationException $e) {
             $errorMsg = 'MongoDB authentication failed - Check MONGODB_URI credentials';
             $this->logError($errorMsg, $e, $startTime);
             throw new \RuntimeException($errorMsg, 0, $e);
-            
         } catch (\Exception $e) {
             $errorMsg = 'Unexpected MongoDB error: ' . $e->getMessage();
             $this->logError($errorMsg, $e, $startTime);
@@ -172,31 +160,21 @@ class MongoDBService
     /**
      * Test de connexion ULTRA-MINIMAL
      * Juste vérifier que la DB est accessible
-     * 
-     * @return void
+     * * @return void
      * @throws \RuntimeException Si le test échoue
      */
     private function minimalConnectionTest(): void
     {
         try {
-            // Test le plus simple possible : lister les collections
-            $collections = $this->database->listCollections();
-            $collectionList = iterator_to_array($collections);
-            
-            if (empty($collectionList)) {
-                // Si pas de collections, en créer une vide pour test
-                $this->database->createCollection('__minimal_test__');
-                $this->database->dropCollection('__minimal_test__');
-            }
-            
+            // Test le plus simple possible : lister les noms des collections
+            $this->database->listCollectionNames();
+
             if ($this->logger) {
                 $this->logger->debug('Minimal connection test PASSED', [
-                    'collections_count' => count($collectionList),
-                    'test_method' => 'listCollections',
+                    'test_method' => 'listCollectionNames',
                     'status' => 'minimal_ok'
                 ]);
             }
-            
         } catch (\Exception $e) {
             $errorMsg = 'Minimal connection test failed: ' . $e->getMessage();
             if ($this->logger) {
@@ -208,8 +186,7 @@ class MongoDBService
 
     /**
      * Journalise une erreur MongoDB avec métriques de timing
-     * 
-     * @param string $message Message d'erreur
+     * * @param string $message Message d'erreur
      * @param \Exception|null $exception Exception associée
      * @param float $startTime Timestamp de début de connexion
      * @return void
@@ -221,41 +198,38 @@ class MongoDBService
                 'uri_prefix' => substr($this->uri, 0, 30) . '...',
                 'database' => $this->databaseName,
                 'error_type' => get_class($exception ?? new \stdClass()),
-                'heroku_fixie_final' => true,
-                'ssl_relaxed' => true
+                'tls_forced' => '1.2'
             ];
-            
+
             if ($exception) {
                 $context['exception_message'] = $exception->getMessage();
                 $context['exception_code'] = $exception->getCode();
             }
-            
+
             if ($startTime > 0) {
                 $context['connection_attempt_time'] = round((microtime(true) - $startTime) * 1000, 2) . 'ms';
             }
-            
+
             $this->logger->error($message, $context);
         }
     }
 
     /**
      * Retourne le client MongoDB brut
-     * 
-     * @return Client
+     * * @return Client
      */
     public function getClient(): Client
     {
         if ($this->client === null) {
             $this->connect();
         }
-        
+
         return $this->client;
     }
-
+    
     /**
      * Retourne l'URI de connexion MongoDB complète (avec timeouts)
-     * 
-     * @return string
+     * * @return string
      */
     public function getUri(): string
     {
@@ -263,21 +237,8 @@ class MongoDBService
     }
 
     /**
-     * Retourne l'URI de connexion MongoDB originale (sans timeouts)
-     * 
-     * @return string
-     */
-    public function getOriginalUri(): string
-    {
-        // Enlever les paramètres ajoutés
-        $originalUri = preg_replace('/&?(connectTimeoutMS|socketTimeoutMS|serverSelectionTimeoutMS|sslallowinvalidcertificates|sslallowinvalidhostnames|sslverifyclientcertificate)=[^&]*/', '', $this->uri);
-        return preg_replace('/\?$/', '', $originalUri);
-    }
-
-    /**
      * Retourne le nom de la base de données
-     * 
-     * @return string
+     * * @return string
      */
     public function getDatabaseName(): string
     {
@@ -286,14 +247,13 @@ class MongoDBService
 
     /**
      * Ferme la connexion MongoDB
-     * 
-     * @return void
+     * * @return void
      */
     public function close(): void
     {
         $this->client = null;
         $this->database = null;
-        
+
         if ($this->logger) {
             $this->logger->debug('MongoDB connection closed (Heroku+Fixie Final)', [
                 'database' => $this->databaseName
@@ -303,84 +263,10 @@ class MongoDBService
 
     /**
      * Vérifie si la connexion MongoDB est active
-     * 
-     * @return bool
+     * * @return bool
      */
     public function isConnected(): bool
     {
         return $this->client !== null && $this->database !== null;
-    }
-
-    /**
-     * Teste la connexion MongoDB (health check minimal)
-     * 
-     * @return bool
-     */
-    public function testConnection(): bool
-    {
-        try {
-            if (!$this->isConnected()) {
-                $this->getDatabase();
-            }
-            
-            // Test minimal : juste lister les collections
-            $collections = $this->database->listCollections();
-            return $collections->isValid();
-            
-        } catch (\Exception $e) {
-            if ($this->logger) {
-                $this->logger->warning('MongoDB health check failed (minimal)', [
-                    'error' => $e->getMessage(),
-                    'test_method' => 'listCollections'
-                ]);
-            }
-            return false;
-        }
-    }
-
-    /**
-     * Méthode magique pour compatibilité avec l'ancien code
-     * 
-     * @return \MongoDB\Database
-     */
-    public function __invoke(): \MongoDB\Database
-    {
-        return $this->getDatabase();
-    }
-
-    /**
-     * Méthode de débogage - retourne les infos de connexion complètes
-     * 
-     * @return array
-     */
-    public function getConnectionInfo(): array
-    {
-        return [
-            'connected' => $this->isConnected(),
-            'database' => $this->getDatabaseName(),
-            'uri_prefix' => substr($this->getOriginalUri(), 0, 50) . '...',
-            'heroku_fixie_final' => true,
-            'ssl_relaxed' => true,
-            'test_method' => 'listCollections',
-            'client_class' => $this->client ? get_class($this->client) : null,
-            'database_class' => $this->database ? get_class($this->database) : null,
-            'health_check' => $this->testConnection()
-        ];
-    }
-
-    /**
-     * Endpoint de debug pour vérifier la connexion (utiliser dans un contrôleur)
-     * 
-     * @return array
-     */
-    public function debugInfo(): array
-    {
-        return [
-            'status' => $this->isConnected() ? 'connected_final_heroku_fixie' : 'disconnected',
-            'database' => $this->getDatabaseName(),
-            'connection_info' => $this->getConnectionInfo(),
-            'timestamp' => new \DateTime('now'),
-            'mode' => 'final_ssl_relaxed_no_runCommand'
-        ];
     }
 }

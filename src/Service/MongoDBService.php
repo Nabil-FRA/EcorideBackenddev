@@ -8,7 +8,7 @@ use Psr\Log\LoggerInterface;
 /**
  * Service de connexion à MongoDB pour l'application Ecoride
  * Version FINALE pour Heroku + Fixie + MongoDB Atlas
- * Gère la connexion sécurisée TLS et le passage par un proxy HTTP (Fixie)
+ * Gère la connexion sécurisée TLS 1.2 à travers un proxy HTTP (Fixie)
  * @author Nabil
  */
 class MongoDBService
@@ -19,12 +19,6 @@ class MongoDBService
     private string $databaseName;
     private ?LoggerInterface $logger = null;
 
-    /**
-     * Constructeur du service MongoDB
-     * @param string $uri Chaîne de connexion MongoDB (mongodb+srv://...)
-     * @param string $database Nom de la base de données
-     * @param LoggerInterface|null $logger Service de logging (optionnel)
-     */
     public function __construct(
         string $uri,
         string $database,
@@ -35,19 +29,13 @@ class MongoDBService
         $this->logger = $logger;
 
         if ($this->logger) {
-            $this->logger->info('MongoDBService initialized (Heroku+Fixie Final Corrected)', [
+            $this->logger->info('MongoDBService initialized (Heroku+Fixie Final)', [
                 'database' => $database,
                 'uri_prefix' => substr($this->uri, 0, 50) . '...',
-                'fixie_optimized' => true
             ]);
         }
     }
 
-    /**
-     * Ajoute les paramètres de timeout nécessaires pour Heroku + Fixie
-     * @param string $uri URI originale
-     * @return string URI optimisée
-     */
     private function addHerokuFixieParams(string $uri): string
     {
         $separator = strpos($uri, '?') !== false ? '&' : '?';
@@ -69,11 +57,6 @@ class MongoDBService
         return $uri . $separator . implode('&', $allParams);
     }
 
-    /**
-     * Retourne la base de données MongoDB
-     * @return \MongoDB\Database
-     * @throws \RuntimeException Si la connexion échoue
-     */
     public function getDatabase(): \MongoDB\Database
     {
         if ($this->database === null) {
@@ -83,7 +66,7 @@ class MongoDBService
     }
 
     /**
-     * Établit la connexion à MongoDB, en utilisant le proxy Fixie si disponible.
+     * Établit la connexion à MongoDB, en utilisant le proxy Fixie et le TLS 1.2 si disponible.
      * @throws \RuntimeException Si la connexion échoue
      */
     private function connect(): void
@@ -91,55 +74,54 @@ class MongoDBService
         $startTime = microtime(true);
 
         try {
-            // Options de base du driver, on active TLS
             $driverOptions = [
                 'tls' => true,
             ];
 
-            // === CONFIGURATION POUR LE PROXY HTTP FIXIE (`FIXIE_URL`) ===
+            // Configuration pour le proxy HTTP Fixie (`FIXIE_URL`)
             $fixieUrl = getenv('FIXIE_URL');
 
             if ($fixieUrl) {
-                $this->logger?->info('Proxy HTTP Fixie détecté, configuration en cours...', ['url_prefix' => substr($fixieUrl, 0, 20)]);
+                $this->logger?->info('Proxy HTTP Fixie détecté, configuration du contexte de flux...');
                 
                 $proxyInfo = parse_url($fixieUrl);
 
                 if ($proxyInfo) {
-                    // Pour un proxy HTTP, on doit créer un "contexte de flux" PHP
                     $auth = base64_encode("{$proxyInfo['user']}:{$proxyInfo['pass']}");
                     
+                    // On crée un contexte qui définit À LA FOIS le proxy et les options TLS
                     $contextOptions = [
                         'http' => [
                             'proxy' => "tcp://{$proxyInfo['host']}:{$proxyInfo['port']}",
                             'request_fulluri' => true,
                             'header' => "Proxy-Authorization: Basic $auth",
                         ],
-                        // Contexte SSL vide pour que le driver MongoDB gère le TLS via le tunnel
-                        'ssl' => [] 
+                        // ✅ CORRECTION : On ajoute explicitement les options TLS 1.2 ici
+                        'ssl' => [
+                            'verify_peer' => true,
+                            'verify_peer_name' => true,
+                            // Forcer l'utilisation de TLS 1.2
+                            'crypto_method' => STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT,
+                        ]
                     ];
 
                     $streamContext = stream_context_create($contextOptions);
-                    
-                    // On ajoute le contexte complet aux options du driver
                     $driverOptions['context'] = $streamContext;
                 }
             }
 
-            // Instanciation du client avec toutes les options (TLS + Contexte HTTP si présent)
+            // Instanciation du client avec toutes les options
             $this->client = new Client($this->uri, [], $driverOptions);
             
             $this->database = $this->client->selectDatabase($this->databaseName);
             $this->minimalConnectionTest();
 
-            // === CONNEXION RÉUSSIE ===
             $connectionTime = round((microtime(true) - $startTime) * 1000, 2);
-            if ($this->logger) {
-                $this->logger->info('MongoDB connection established successfully', [
-                    'database' => $this->databaseName,
-                    'via_proxy' => !empty($fixieUrl),
-                    'connection_time_ms' => $connectionTime,
-                ]);
-            }
+            $this->logger?->info('MongoDB connection established successfully', [
+                'database' => $this->databaseName,
+                'via_proxy' => !empty($fixieUrl),
+                'connection_time_ms' => $connectionTime,
+            ]);
 
         } catch (\Exception $e) {
             $errorMsg = 'Unexpected MongoDB error: ' . $e->getMessage();
@@ -148,10 +130,6 @@ class MongoDBService
         }
     }
 
-    /**
-     * Test de connexion minimal
-     * @throws \RuntimeException Si le test échoue
-     */
     private function minimalConnectionTest(): void
     {
         try {
@@ -164,9 +142,6 @@ class MongoDBService
         }
     }
 
-    /**
-     * Journalise une erreur MongoDB
-     */
     private function logError(string $message, \Exception $exception, float $startTime): void
     {
         if ($this->logger) {
@@ -181,8 +156,7 @@ class MongoDBService
         }
     }
 
-    // --- AUTRES MÉTHODES ---
-
+    // --- Autres méthodes ---
     public function getClient(): Client
     {
         if ($this->client === null) {

@@ -7,8 +7,8 @@ use Psr\Log\LoggerInterface;
 
 /**
  * Service de connexion à MongoDB pour l'application Ecoride
- * Version optimisée pour Heroku + Fixie SOCKS5 proxy + MongoDB Atlas
- * Compatible avec toutes les versions d'extension MongoDB
+ * Version ULTRA-SIMPLIFIÉE pour Heroku + Fixie + MongoDB Atlas
+ * Compatible avec TOUTES les versions d'extension MongoDB
  * 
  * @author Nabil
  */
@@ -19,7 +19,6 @@ class MongoDBService
     private string $uri;
     private string $databaseName;
     private ?LoggerInterface $logger = null;
-    private array $driverOptions = [];
 
     /**
      * Constructeur du service MongoDB
@@ -38,109 +37,12 @@ class MongoDBService
         $this->databaseName = $database;
         $this->logger = $logger;
         
-        // Configuration automatique du proxy Fixie SOCKS5
-        $this->configureFixieProxy();
-        
         if ($this->logger) {
-            $this->logger->info('MongoDBService initialized', [
+            $this->logger->info('MongoDBService initialized (Ultra-Simple)', [
                 'database' => $database,
                 'uri_prefix' => substr($this->uri, 0, 50) . '...',
                 'timeouts_added' => true,
-                'fixie_proxy_enabled' => !empty($this->driverOptions),
-                'driver_options_count' => count($this->driverOptions)
-            ]);
-        }
-    }
-
-    /**
-     * Configure automatiquement le proxy Fixie SOCKS5
-     * 
-     * @return void
-     */
-    private function configureFixieProxy(): void
-    {
-        // Récupère l'URL du proxy Fixie depuis les variables d'environnement Heroku
-        $proxyUrl = getenv('FIXIE_URL');
-        
-        if (empty($proxyUrl)) {
-            if ($this->logger) {
-                $this->logger->debug('No Fixie proxy URL found in environment');
-            }
-            return;
-        }
-
-        if ($this->logger) {
-            $this->logger->info('Fixie SOCKS5 proxy detected, configuring MongoDB driver', [
-                'proxy_url_set' => true,
-                'proxy_url_prefix' => substr($proxyUrl, 0, 30) . '...'
-            ]);
-        }
-
-        // Parser l'URL Fixie (format: socks5://user:pass@host:port)
-        $proxyParts = parse_url($proxyUrl);
-        
-        if (!$proxyParts || empty($proxyParts['host']) || empty($proxyParts['port'])) {
-            if ($this->logger) {
-                $this->logger->warning('FIXIE_URL malformed, cannot parse proxy configuration', [
-                    'proxy_url' => $proxyUrl,
-                    'parsed_parts' => $proxyParts
-                ]);
-            }
-            return;
-        }
-
-        $proxyHost = $proxyParts['host'];
-        $proxyPort = $proxyParts['port'];
-        $proxyUser = $proxyParts['user'] ?? null;
-        $proxyPass = $proxyParts['pass'] ?? null;
-
-        // Configuration du driver MongoDB pour SOCKS5 (VERSION SIMPLIFIÉE)
-        $this->driverOptions = [
-            // Configuration SSL/TLS simplifiée (sans constantes problématiques)
-            'ssl' => [
-                'allow_self_signed_certificate' => false,
-                'verify_peer' => true,
-                'verify_peer_name' => true,
-                'allow_invalid_hostnames' => false,
-                // Utiliser les valeurs numériques au lieu des constantes
-                'crypto_method' => 0x1000  // MONGODB_CRYPTO_METHOD_SSLv1_2_CLIENT (valeur numérique)
-            ],
-            // Options de connexion optimisées pour proxy
-            'connectTimeoutMS' => 60000,           // 60s
-            'socketTimeoutMS' => 90000,            // 90s
-            'serverSelectionTimeoutMS' => 45000,   // 45s
-            'heartbeatFrequencyMS' => 5000,        // Check toutes les 5s
-            'maxIdleTimeMS' => 0,                  // Pas de timeout idle
-            'maxPoolSize' => 5,                    // Pool réduit pour Heroku
-            'minPoolSize' => 1,                    // 1 connexion minimum
-            'maxConnecting' => 2,                  // 2 connexions simultanées
-            'waitQueueTimeoutMS' => 60000,         // 60s pour queue
-            'maxTimeMS' => 60000,                  // 60s max par opération
-            // Options de retry pour proxy
-            'retryWrites' => true,
-            'retryReads' => true,
-            'retryableWrites' => true,
-            'w' => 'majority'
-        ];
-
-        // Configuration proxy SOCKS5 (simplifiée)
-        if ($proxyHost && $proxyPort) {
-            $this->driverOptions['proxy'] = [
-                'host' => $proxyHost,
-                'port' => $proxyPort,
-                'type' => 'SOCKS5',
-                'username' => $proxyUser,
-                'password' => $proxyPass
-            ];
-        }
-
-        if ($this->logger) {
-            $this->logger->info('Fixie SOCKS5 proxy configured successfully', [
-                'proxy_host' => $proxyHost,
-                'proxy_port' => $proxyPort,
-                'proxy_auth_enabled' => !empty($proxyUser),
-                'driver_options_keys' => array_keys($this->driverOptions),
-                'proxy_configured' => !empty($this->driverOptions['proxy'] ?? [])
+                'no_runCommand' => true  // Mode ultra-simple sans runCommand
             ]);
         }
     }
@@ -156,21 +58,21 @@ class MongoDBService
         // Si l'URI contient déjà des paramètres, ajouter & sinon ?
         $separator = strpos($uri, '?') !== false ? '&' : '?';
         
-        // Paramètres de base
-        $baseParams = [
+        // Paramètres ULTRA-SIMPLIFIÉS (seulement les essentiels)
+        $params = [
             'retryWrites=true',
             'w=majority',
             'appName=Ecoride-Heroku-Fixie'
         ];
         
-        // Paramètres de timeout (déjà inclus dans driverOptions, mais pour compatibilité)
+        // Timeouts essentiels (déjà inclus dans driverOptions)
         $timeoutParams = [
-            'connectTimeoutMS=60000',
-            'socketTimeoutMS=90000',
-            'serverSelectionTimeoutMS=45000'
+            'connectTimeoutMS=60000',      // 60s
+            'socketTimeoutMS=90000',       // 90s
+            'serverSelectionTimeoutMS=45000' // 45s
         ];
         
-        return $uri . $separator . implode('&', array_merge($baseParams, $timeoutParams));
+        return $uri . $separator . implode('&', array_merge($params, $timeoutParams));
     }
 
     /**
@@ -191,7 +93,7 @@ class MongoDBService
 
     /**
      * Établit la connexion à MongoDB
-     * Version optimisée pour Heroku avec Fixie SOCKS5 proxy
+     * VERSION ULTRA-SIMPLIFIÉE : AUCUN runCommand(), seulement insert/find/delete
      * 
      * @throws \RuntimeException Si la connexion échoue
      */
@@ -201,122 +103,114 @@ class MongoDBService
         
         try {
             if ($this->logger) {
-                $this->logger->info('Establishing MongoDB connection via Fixie SOCKS5', [
+                $this->logger->info('Establishing MongoDB connection (Ultra-Simple mode)', [
                     'uri_prefix' => substr($this->uri, 0, 40) . '...',
                     'database' => $this->databaseName,
-                    'proxy_enabled' => !empty($this->driverOptions),
                     'connect_timeout' => 60,
-                    'socket_timeout' => 90
+                    'no_runCommand' => true,
+                    'test_method' => 'insert_find_delete'
                 ]);
             }
 
-            // === CONNEXION AVEC PROXY FIXIE ===
-            // Utilisation des driverOptions pour SOCKS5
-            $this->client = new Client($this->uri, [], $this->driverOptions);
+            // === CONNEXION ULTRA-SIMPLE ===
+            // Pas de proxy complexe, pas de runCommand, juste Client de base
+            $this->client = new Client($this->uri);
             
             // Sélection de la base de données
             $this->database = $this->client->selectDatabase($this->databaseName);
             
-            // Test de connexion simple via proxy
-            $this->testConnectionThroughProxy();
+            // === TEST ULTRA-SIMPLE (SEULEMENT insert/find/delete) ===
+            $this->ultraSimpleConnectionTest();
             
             // === CONNEXION RÉUSSIE ===
             $connectionTime = round((microtime(true) - $startTime) * 1000, 2);
             
             if ($this->logger) {
-                $this->logger->info('MongoDB connection established successfully via Fixie', [
+                $this->logger->info('MongoDB connection established successfully (Ultra-Simple)', [
                     'database' => $this->databaseName,
                     'connection_time_ms' => $connectionTime,
                     'client_class' => get_class($this->client),
                     'database_class' => get_class($this->database),
-                    'proxy_via_fixie' => true
+                    'test_method_used' => 'insert_find_delete'
                 ]);
             }
             
         } catch (\MongoDB\Driver\Exception\ConnectionTimeoutException $e) {
-            $errorMsg = 'MongoDB connection timeout (60s) via Fixie - Vérifiez la connectivité proxy';
+            $errorMsg = 'MongoDB connection timeout (60s) - Vérifiez la connectivité réseau Heroku ↔ MongoDB Atlas';
             $this->logError($errorMsg, $e, $startTime);
             throw new \RuntimeException($errorMsg, 0, $e);
             
         } catch (\MongoDB\Driver\Exception\ServerSelectionTimeoutException $e) {
-            $errorMsg = 'MongoDB server selection timeout (45s) via Fixie - Vérifiez le cluster Atlas';
+            $errorMsg = 'MongoDB server selection timeout (45s) - Vérifiez que le cluster MongoDB Atlas est en ligne';
             $this->logError($errorMsg, $e, $startTime);
             throw new \RuntimeException($errorMsg, 0, $e);
             
         } catch (\MongoDB\Driver\Exception\AuthenticationException $e) {
-            $errorMsg = 'MongoDB authentication failed via Fixie - Vérifiez les identifiants MONGODB_URI';
-            $this->logError($errorMsg, $e, $startTime);
-            throw new \RuntimeException($errorMsg, 0, $e);
-            
-        } catch (\MongoDB\Driver\Exception\BulkWriteException $e) {
-            $errorMsg = 'MongoDB bulk write failed via Fixie - Vérifiez les privilèges utilisateur';
+            $errorMsg = 'MongoDB authentication failed - Vérifiez les identifiants dans MONGODB_URI';
             $this->logError($errorMsg, $e, $startTime);
             throw new \RuntimeException($errorMsg, 0, $e);
             
         } catch (\Exception $e) {
-            $errorMsg = 'Unexpected MongoDB error via Fixie: ' . $e->getMessage();
+            $errorMsg = 'Unexpected MongoDB error: ' . $e->getMessage();
             $this->logError($errorMsg, $e, $startTime);
             throw new \RuntimeException($errorMsg, 0, $e);
         }
     }
 
     /**
-     * Test de connexion spécifique pour proxy Fixie
+     * Test de connexion ULTRA-SIMPLE (AUCUN runCommand)
+     * Utilise seulement insertOne + findOne + deleteOne
      * 
      * @return void
      * @throws \RuntimeException Si le test échoue
      */
-    private function testConnectionThroughProxy(): void
+    private function ultraSimpleConnectionTest(): void
     {
         try {
-            // Test simple : ping sur la base admin
-            $adminDb = $this->client->selectDatabase('admin');
-            $pingResult = $adminDb->runCommand(['ping' => 1]);
+            // Créer une collection de test
+            $testCollection = $this->database->selectCollection('__ultra_simple_test__');
             
-            if (!isset($pingResult['ok']) || $pingResult['ok'] != 1) {
-                throw new \RuntimeException('MongoDB ping failed via Fixie: ' . json_encode($pingResult));
-            }
-            
-            if ($this->logger) {
-                $this->logger->debug('MongoDB ping successful via Fixie SOCKS5', [
-                    'ping_result_ok' => $pingResult['ok']
-                ]);
-            }
-            
-            // Test d'écriture simple
-            $testCollection = $this->database->selectCollection('__proxy_test__');
+            // Test 1 : Insertion simple
             $testDoc = [
-                'test_proxy_connection' => true,
-                'via_fixie' => true,
+                'ultra_simple_test' => true,
                 'timestamp' => new \DateTime('now'),
-                'server' => php_uname('n')
+                'method' => 'insert_find_delete',
+                'connected_from' => 'heroku_simple'
             ];
             
             $insertResult = $testCollection->insertOne($testDoc);
             
-            if (!$insertResult->getInsertedId()) {
-                throw new \RuntimeException('Failed to insert test document via Fixie');
+            if (!$insertResult || !$insertResult->getInsertedId()) {
+                throw new \RuntimeException('Failed to insert test document (ultra-simple mode)');
             }
             
-            // Vérification lecture
-            $readResult = $testCollection->findOne(['_id' => $insertResult->getInsertedId()]);
-            if (!$readResult || $readResult['test_proxy_connection'] !== true) {
-                throw new \RuntimeException('Failed to read test document via Fixie');
+            $insertedId = $insertResult->getInsertedId();
+            
+            // Test 2 : Lecture simple
+            $readResult = $testCollection->findOne(['_id' => $insertedId]);
+            
+            if (!$readResult || $readResult['ultra_simple_test'] !== true) {
+                throw new \RuntimeException('Failed to read test document (ultra-simple mode)');
             }
             
-            // Nettoyage
-            $testCollection->deleteOne(['_id' => $insertResult->getInsertedId()]);
+            // Test 3 : Suppression simple
+            $deleteResult = $testCollection->deleteOne(['_id' => $insertedId]);
+            
+            if ($deleteResult->getDeletedCount() !== 1) {
+                throw new \RuntimeException('Failed to delete test document (ultra-simple mode)');
+            }
             
             if ($this->logger) {
-                $this->logger->debug('Proxy connection test completed successfully', [
-                    'test_document_id' => $insertResult->getInsertedId(),
+                $this->logger->debug('Ultra-simple connection test PASSED', [
+                    'insert_id' => $insertedId,
                     'read_success' => true,
-                    'via_proxy' => true
+                    'delete_count' => $deleteResult->getDeletedCount(),
+                    'test_method' => 'insert_find_delete'
                 ]);
             }
             
         } catch (\Exception $e) {
-            $errorMsg = 'Proxy connection test failed via Fixie: ' . $e->getMessage();
+            $errorMsg = 'Ultra-simple connection test failed: ' . $e->getMessage();
             if ($this->logger) {
                 $this->logger->error($errorMsg, ['exception' => $e->getMessage()]);
             }
@@ -339,14 +233,12 @@ class MongoDBService
                 'uri_prefix' => substr($this->uri, 0, 30) . '...',
                 'database' => $this->databaseName,
                 'error_type' => get_class($exception ?? new \stdClass()),
-                'fixie_proxy_used' => !empty($this->driverOptions)
+                'ultra_simple_mode' => true
             ];
             
             if ($exception) {
                 $context['exception_message'] = $exception->getMessage();
                 $context['exception_code'] = $exception->getCode();
-                $context['exception_file'] = $exception->getFile();
-                $context['exception_line'] = $exception->getLine();
             }
             
             if ($startTime > 0) {
@@ -414,7 +306,7 @@ class MongoDBService
         $this->database = null;
         
         if ($this->logger) {
-            $this->logger->debug('MongoDB connection closed via Fixie', [
+            $this->logger->debug('MongoDB connection closed (ultra-simple mode)', [
                 'database' => $this->databaseName
             ]);
         }
@@ -431,7 +323,7 @@ class MongoDBService
     }
 
     /**
-     * Teste la connexion MongoDB (health check)
+     * Teste la connexion MongoDB (health check ULTRA-SIMPLE)
      * 
      * @return bool
      */
@@ -442,16 +334,22 @@ class MongoDBService
                 $this->getDatabase();
             }
             
-            // Ping simple via proxy
-            $adminDb = $this->client->selectDatabase('admin');
-            $pingResult = $adminDb->runCommand(['ping' => 1]);
+            // Test ULTRA-SIMPLE : juste une insertion/lecture
+            $testCollection = $this->database->selectCollection('__health_check__');
+            $result = $testCollection->insertOne(['health_check' => true]);
             
-            return isset($pingResult['ok']) && $pingResult['ok'] == 1;
+            if ($result && $result->getInsertedId()) {
+                $testCollection->deleteOne(['_id' => $result->getInsertedId()]);
+                return true;
+            }
+            
+            return false;
             
         } catch (\Exception $e) {
             if ($this->logger) {
-                $this->logger->warning('MongoDB health check failed via Fixie', [
-                    'error' => $e->getMessage()
+                $this->logger->warning('MongoDB health check failed (ultra-simple)', [
+                    'error' => $e->getMessage(),
+                    'test_method' => 'insert_delete'
                 ]);
             }
             return false;
@@ -475,28 +373,16 @@ class MongoDBService
      */
     public function getConnectionInfo(): array
     {
-        $info = [
+        return [
             'connected' => $this->isConnected(),
             'database' => $this->getDatabaseName(),
             'uri_prefix' => substr($this->getOriginalUri(), 0, 50) . '...',
-            'full_uri_length' => strlen($this->uri),
-            'fixie_proxy_enabled' => !empty($this->driverOptions),
+            'ultra_simple_mode' => true,
+            'test_method' => 'insert_find_delete',
             'client_class' => $this->client ? get_class($this->client) : null,
             'database_class' => $this->database ? get_class($this->database) : null,
-            'health_check' => $this->testConnection(),
-            'driver_options_count' => count($this->driverOptions)
+            'health_check' => $this->testConnection()
         ];
-
-        if ($this->isConnected()) {
-            try {
-                $info['server_info'] = $this->client->selectDatabase('admin')->runCommand(['ismaster' => 1]);
-                $info['server_info']['via_proxy'] = true;
-            } catch (\Exception $e) {
-                $info['server_info'] = ['error' => $e->getMessage(), 'via_proxy' => true];
-            }
-        }
-
-        return $info;
     }
 
     /**
@@ -507,15 +393,11 @@ class MongoDBService
     public function debugInfo(): array
     {
         return [
-            'status' => $this->isConnected() ? 'connected_via_fixie' : 'disconnected',
+            'status' => $this->isConnected() ? 'connected_ultra_simple' : 'disconnected',
             'database' => $this->getDatabaseName(),
             'connection_info' => $this->getConnectionInfo(),
             'timestamp' => new \DateTime('now'),
-            'environment' => [
-                'fixie_url_set' => !empty(getenv('FIXIE_URL')),
-                'heroku_dyno' => getenv('HEROKU_DYNO'),
-                'app_name' => getenv('APP_NAME') ?: 'local'
-            ]
+            'mode' => 'ultra_simple_no_runCommand'
         ];
     }
 }

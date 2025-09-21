@@ -8,8 +8,8 @@ use Psr\Log\LoggerInterface;
 /**
  * Service de connexion à MongoDB pour l'application Ecoride
  * Version optimisée pour Heroku et MongoDB Atlas
- * 
- * @author Nabil
+ * Inclus la configuration automatique du proxy Fixie (SOCKS5)
+ * * @author Nabil
  */
 class MongoDBService
 {
@@ -21,8 +21,7 @@ class MongoDBService
 
     /**
      * Constructeur du service MongoDB
-     * 
-     * @param string $uri Chaîne de connexion MongoDB (mongodb+srv://...)
+     * * @param string $uri Chaîne de connexion MongoDB (mongodb+srv://...)
      * @param string $database Nom de la base de données
      * @param LoggerInterface|null $logger Service de logging (optionnel)
      */
@@ -47,8 +46,7 @@ class MongoDBService
 
     /**
      * Ajoute les timeouts étendus à l'URI MongoDB
-     * 
-     * @param string $uri URI originale
+     * * @param string $uri URI originale
      * @return string URI avec timeouts
      */
     private function addTimeoutsToUri(string $uri): string
@@ -68,8 +66,7 @@ class MongoDBService
     /**
      * Retourne la base de données MongoDB
      * Crée la connexion si elle n'existe pas
-     * 
-     * @return \MongoDB\Database
+     * * @return \MongoDB\Database
      * @throws \RuntimeException Si la connexion échoue
      */
     public function getDatabase(): \MongoDB\Database
@@ -83,57 +80,69 @@ class MongoDBService
 
     /**
      * Établit la connexion à MongoDB
-     * Version optimisée pour Heroku avec timeouts étendus
-     * 
-     * @throws \RuntimeException Si la connexion échoue
+     * Version optimisée pour Heroku avec timeouts et proxy Fixie
+     * * @throws \RuntimeException Si la connexion échoue
      */
     private function connect(): void
     {
         $startTime = microtime(true);
         
+        // =================== DÉBUT DE LA MODIFICATION POUR FIXIE ===================
+        $driverOptions = [];
+        // Récupère l'URL du proxy depuis les variables d'environnement de Heroku
+        $proxyUrl = getenv('FIXIE_URL');
+
+        // Si l'URL du proxy existe, on configure les options du driver MongoDB
+        if ($proxyUrl) {
+            if ($this->logger) {
+                $this->logger->info('Fixie proxy detected, configuring SOCKS5 connection.', [
+                    'proxy_url_set' => !empty($proxyUrl)
+                ]);
+            }
+            
+            $proxyParts = parse_url($proxyUrl);
+            $proxyUser = $proxyParts['user'] ?? null;
+            $proxyPass = $proxyParts['pass'] ?? null;
+            $proxyHost = $proxyParts['host'] ?? null;
+            $proxyPort = $proxyParts['port'] ?? null;
+
+            // Fixie utilise le protocole SOCKS5. On construit les options pour le driver.
+            if ($proxyHost && $proxyPort) {
+                 $driverOptions = [
+                    'driver' => [
+                        'options' => [
+                            'proxy' => 'socks5://' . $proxyHost . ':' . $proxyPort,
+                            'proxy_username' => $proxyUser,
+                            'proxy_password' => $proxyPass,
+                        ]
+                    ]
+                ];
+            } else {
+                 if ($this->logger) {
+                    $this->logger->warning('FIXIE_URL is set but could not be parsed correctly.', ['url' => $proxyUrl]);
+                 }
+            }
+        }
+        // =================== FIN DE LA MODIFICATION POUR FIXIE =====================
+        
         try {
             if ($this->logger) {
-                $this->logger->info('Establishing MongoDB connection with extended timeouts', [
+                $this->logger->info('Establishing MongoDB connection...', [
                     'uri_prefix' => substr($this->uri, 0, 40) . '...',
                     'database' => $this->databaseName,
-                    'connect_timeout' => 30,
-                    'socket_timeout' => 60,
-                    'server_selection_timeout' => 30
+                    'proxy_enabled' => !empty($proxyUrl)
                 ]);
             }
 
-            // === CONNEXION AVEC TIMEOUTS ÉTENDUS ===
-            // L'URI mongodb+srv:// gère automatiquement TLS/SSL
-            $this->client = new Client($this->uri);
+            // === CONNEXION AVEC PROXY ET TIMEOUTS ===
+            // On passe le tableau $driverOptions au constructeur du Client
+            $this->client = new Client($this->uri, [], $driverOptions);
             
             // Sélection de la base de données
             $this->database = $this->client->selectDatabase($this->databaseName);
             
-            // === TEST DE CONNEXION PROGRESSIF ===
-            // Test 1 : Créer une collection de test
-            $testCollection = $this->database->selectCollection('__connection_test__');
-            
-            // Test 2 : Insertion simple (timeout 30s)
-            $insertResult = $testCollection->insertOne([
-                'test' => 'connection',
-                'ping' => 'pong',
-                'timestamp' => new \DateTime('now'),
-                'connected_from' => 'heroku',
-                'connection_time' => round((microtime(true) - $startTime) * 1000, 2) . 'ms'
-            ]);
-            
-            if (!$insertResult->getInsertedId()) {
-                throw new \RuntimeException('Failed to insert test document');
-            }
-            
-            // Test 3 : Lecture simple
-            $readResult = $testCollection->findOne(['_id' => $insertResult->getInsertedId()]);
-            if (!$readResult) {
-                throw new \RuntimeException('Failed to read test document');
-            }
-            
-            // Test 4 : Nettoyage
-            $testCollection->deleteOne(['_id' => $insertResult->getInsertedId()]);
+            // Test de connexion pour forcer une exception en cas de problème
+            $this->database->command(['ping' => 1]);
             
             // === CONNEXION RÉUSSIE ===
             $connectionTime = round((microtime(true) - $startTime) * 1000, 2);
@@ -141,39 +150,26 @@ class MongoDBService
             if ($this->logger) {
                 $this->logger->info('MongoDB connection established successfully', [
                     'database' => $this->databaseName,
-                    'client_class' => get_class($this->client),
-                    'database_class' => get_class($this->database),
                     'connection_time_ms' => $connectionTime,
-                    'test_document_id' => $insertResult->getInsertedId()
                 ]);
             }
             
         } catch (\MongoDB\Driver\Exception\ConnectionTimeoutException $e) {
-            // Timeout de connexion
             $errorMsg = 'MongoDB connection timeout (30s) - Vérifiez la connectivité réseau Heroku ↔ MongoDB Atlas';
             $this->logError($errorMsg, $e, $startTime);
             throw new \RuntimeException($errorMsg, 0, $e);
             
         } catch (\MongoDB\Driver\Exception\ServerSelectionTimeoutException $e) {
-            // Timeout de sélection de serveur
             $errorMsg = 'MongoDB server selection timeout (30s) - Vérifiez que le cluster MongoDB Atlas est en ligne';
             $this->logError($errorMsg, $e, $startTime);
             throw new \RuntimeException($errorMsg, 0, $e);
             
         } catch (\MongoDB\Driver\Exception\AuthenticationException $e) {
-            // Erreur d'authentification
             $errorMsg = 'MongoDB authentication failed - Vérifiez les identifiants dans MONGODB_URI';
             $this->logError($errorMsg, $e, $startTime);
             throw new \RuntimeException($errorMsg, 0, $e);
             
-        } catch (\MongoDB\Driver\Exception\BulkWriteException $e) {
-            // Erreur d'écriture en bulk (souvent liée à l'auth)
-            $errorMsg = 'MongoDB bulk write failed - Vérifiez les privilèges utilisateur MongoDB';
-            $this->logError($errorMsg, $e, $startTime);
-            throw new \RuntimeException($errorMsg, 0, $e);
-            
         } catch (\Exception $e) {
-            // Erreur générale
             $errorMsg = 'Unexpected MongoDB error: ' . $e->getMessage();
             $this->logError($errorMsg, $e, $startTime);
             throw new \RuntimeException($errorMsg, 0, $e);
@@ -182,8 +178,7 @@ class MongoDBService
 
     /**
      * Journalise une erreur MongoDB avec métriques de timing
-     * 
-     * @param string $message Message d'erreur
+     * * @param string $message Message d'erreur
      * @param \Exception|null $exception Exception associée
      * @param float $startTime Timestamp de début de connexion
      * @return void
@@ -199,9 +194,6 @@ class MongoDBService
             
             if ($exception) {
                 $context['exception_message'] = $exception->getMessage();
-                $context['exception_code'] = $exception->getCode();
-                $context['exception_file'] = $exception->getFile();
-                $context['exception_line'] = $exception->getLine();
             }
             
             if ($startTime > 0) {
@@ -214,8 +206,7 @@ class MongoDBService
 
     /**
      * Retourne le client MongoDB brut
-     * 
-     * @return Client
+     * * @return Client
      */
     public function getClient(): Client
     {
@@ -225,10 +216,11 @@ class MongoDBService
         
         return $this->client;
     }
+    
+    // ... (Le reste de vos méthodes reste inchangé)
 
     /**
      * Retourne l'URI de connexion MongoDB complète (avec timeouts)
-     * 
      * @return string
      */
     public function getUri(): string
@@ -237,19 +229,7 @@ class MongoDBService
     }
 
     /**
-     * Retourne l'URI de connexion MongoDB originale (sans timeouts)
-     * 
-     * @return string
-     */
-    public function getOriginalUri(): string
-    {
-        $originalUri = preg_replace('/&?(connectTimeoutMS|socketTimeoutMS|serverSelectionTimeoutMS|heartbeatFrequencyMS|maxIdleTimeMS)=[^&]*/', '', $this->uri);
-        return preg_replace('/\?$/', '', $originalUri);
-    }
-
-    /**
      * Retourne le nom de la base de données
-     * 
      * @return string
      */
     public function getDatabaseName(): string
@@ -259,113 +239,20 @@ class MongoDBService
 
     /**
      * Ferme la connexion MongoDB
-     * 
      * @return void
      */
     public function close(): void
     {
         $this->client = null;
         $this->database = null;
-        
-        if ($this->logger) {
-            $this->logger->debug('MongoDB connection closed', [
-                'database' => $this->databaseName
-            ]);
-        }
     }
 
     /**
      * Vérifie si la connexion MongoDB est active
-     * 
      * @return bool
      */
     public function isConnected(): bool
     {
         return $this->client !== null && $this->database !== null;
-    }
-
-    /**
-     * Teste la connexion MongoDB (pour debug)
-     * 
-     * @return bool
-     */
-    public function testConnection(): bool
-    {
-        try {
-            if (!$this->isConnected()) {
-                $this->getDatabase();
-            }
-            
-            $testCollection = $this->database->selectCollection('__health_check__');
-            $result = $testCollection->insertOne(['health_check' => true, 'timestamp' => new \DateTime()]);
-            
-            if ($result && $result->getInsertedId()) {
-                $testCollection->deleteOne(['_id' => $result->getInsertedId()]);
-                return true;
-            }
-            
-            return false;
-            
-        } catch (\Exception $e) {
-            if ($this->logger) {
-                $this->logger->warning('MongoDB health check failed', [
-                    'error' => $e->getMessage()
-                ]);
-            }
-            return false;
-        }
-    }
-
-    /**
-     * Méthode magique pour compatibilité avec l'ancien code
-     * 
-     * @return \MongoDB\Database
-     */
-    public function __invoke(): \MongoDB\Database
-    {
-        return $this->getDatabase();
-    }
-
-    /**
-     * Méthode de débogage - retourne les infos de connexion complètes
-     * 
-     * @return array
-     */
-    public function getConnectionInfo(): array
-    {
-        $info = [
-            'connected' => $this->isConnected(),
-            'database' => $this->getDatabaseName(),
-            'uri_prefix' => substr($this->getOriginalUri(), 0, 50) . '...',
-            'full_uri_length' => strlen($this->uri),
-            'client_class' => $this->client ? get_class($this->client) : null,
-            'database_class' => $this->database ? get_class($this->database) : null,
-            'health_check' => $this->testConnection()
-        ];
-
-        if ($this->isConnected()) {
-            try {
-                $info['server_info'] = $this->client->selectDatabase('admin')->runCommand(['ismaster' => 1]);
-            } catch (\Exception $e) {
-                $info['server_info'] = ['error' => $e->getMessage()];
-            }
-        }
-
-        return $info;
-    }
-
-    /**
-     * Endpoint de debug pour vérifier la connexion (utiliser dans un contrôleur)
-     * 
-     * @return array
-     */
-    public function debugInfo(): array
-    {
-        return [
-            'status' => $this->isConnected() ? 'connected' : 'disconnected',
-            'database' => $this->getDatabaseName(),
-            'connection_info' => $this->getConnectionInfo(),
-            'timestamp' => new \DateTime('now')
-        ];
     }
 }

@@ -8,6 +8,7 @@ use Psr\Log\LoggerInterface;
 /**
  * Service de connexion à MongoDB pour l'application Ecoride
  * Version optimisée pour Heroku + Fixie SOCKS5 proxy + MongoDB Atlas
+ * Compatible avec toutes les versions d'extension MongoDB
  * 
  * @author Nabil
  */
@@ -93,25 +94,16 @@ class MongoDBService
         $proxyUser = $proxyParts['user'] ?? null;
         $proxyPass = $proxyParts['pass'] ?? null;
 
-        // Configuration du driver MongoDB pour SOCKS5
+        // Configuration du driver MongoDB pour SOCKS5 (VERSION SIMPLIFIÉE)
         $this->driverOptions = [
-            // Configuration du driver pour utiliser le proxy SOCKS5
-            'uri' => $this->uri,
-            // Options spécifiques pour le proxy
-            'proxy' => [
-                'type' => 'socks5',
-                'host' => $proxyHost,
-                'port' => $proxyPort,
-                'username' => $proxyUser,
-                'password' => $proxyPass,
-                // Configuration SSL/TLS via proxy
-                'ssl' => [
-                    'allow_self_signed_certificate' => false,
-                    'verify_peer' => true,
-                    'verify_peer_name' => true,
-                    'allow_invalid_hostnames' => false,
-                    'crypto_method' => \MONGODB_CRYPTO_METHOD_SSLv1_2_CLIENT
-                ]
+            // Configuration SSL/TLS simplifiée (sans constantes problématiques)
+            'ssl' => [
+                'allow_self_signed_certificate' => false,
+                'verify_peer' => true,
+                'verify_peer_name' => true,
+                'allow_invalid_hostnames' => false,
+                // Utiliser les valeurs numériques au lieu des constantes
+                'crypto_method' => 0x1000  // MONGODB_CRYPTO_METHOD_SSLv1_2_CLIENT (valeur numérique)
             ],
             // Options de connexion optimisées pour proxy
             'connectTimeoutMS' => 60000,           // 60s
@@ -128,24 +120,27 @@ class MongoDBService
             'retryWrites' => true,
             'retryReads' => true,
             'retryableWrites' => true,
-            'w' => 'majority',
-            // Configuration SSL/TLS complète
-            'ssl' => [
-                'allow_self_signed_certificate' => false,
-                'verify_peer' => true,
-                'verify_peer_name' => true,
-                'allow_invalid_hostnames' => false,
-                'ca_file' => null,  // Utiliser les CA système
-                'crypto_method' => \MONGODB_CRYPTO_METHOD_SSLv1_2_CLIENT
-            ]
+            'w' => 'majority'
         ];
+
+        // Configuration proxy SOCKS5 (simplifiée)
+        if ($proxyHost && $proxyPort) {
+            $this->driverOptions['proxy'] = [
+                'host' => $proxyHost,
+                'port' => $proxyPort,
+                'type' => 'SOCKS5',
+                'username' => $proxyUser,
+                'password' => $proxyPass
+            ];
+        }
 
         if ($this->logger) {
             $this->logger->info('Fixie SOCKS5 proxy configured successfully', [
                 'proxy_host' => $proxyHost,
                 'proxy_port' => $proxyPort,
                 'proxy_auth_enabled' => !empty($proxyUser),
-                'driver_options_keys' => array_keys($this->driverOptions)
+                'driver_options_keys' => array_keys($this->driverOptions),
+                'proxy_configured' => !empty($this->driverOptions['proxy'] ?? [])
             ]);
         }
     }
@@ -284,7 +279,7 @@ class MongoDBService
             
             if ($this->logger) {
                 $this->logger->debug('MongoDB ping successful via Fixie SOCKS5', [
-                    'ping_result' => $pingResult
+                    'ping_result_ok' => $pingResult['ok']
                 ]);
             }
             
@@ -315,7 +310,8 @@ class MongoDBService
             if ($this->logger) {
                 $this->logger->debug('Proxy connection test completed successfully', [
                     'test_document_id' => $insertResult->getInsertedId(),
-                    'read_success' => true
+                    'read_success' => true,
+                    'via_proxy' => true
                 ]);
             }
             
@@ -488,7 +484,7 @@ class MongoDBService
             'client_class' => $this->client ? get_class($this->client) : null,
             'database_class' => $this->database ? get_class($this->database) : null,
             'health_check' => $this->testConnection(),
-            'driver_options' => array_keys($this->driverOptions)
+            'driver_options_count' => count($this->driverOptions)
         ];
 
         if ($this->isConnected()) {

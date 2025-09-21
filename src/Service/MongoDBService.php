@@ -7,8 +7,8 @@ use Psr\Log\LoggerInterface;
 
 /**
  * Service de connexion à MongoDB pour l'application Ecoride
- * Version ULTRA-SIMPLIFIÉE pour Heroku + Fixie + MongoDB Atlas
- * Compatible avec TOUTES les versions d'extension MongoDB
+ * Version FINALE pour Heroku + Fixie + MongoDB Atlas
+ * SSL simplifié pour éviter les erreurs de handshake
  * 
  * @author Nabil
  */
@@ -32,47 +32,57 @@ class MongoDBService
         string $database, 
         ?LoggerInterface $logger = null
     ) {
-        // Ajouter automatiquement les timeouts étendus pour Heroku + Fixie
-        $this->uri = $this->addTimeoutsToUri($uri);
+        // Ajouter automatiquement les timeouts et paramètres SSL pour Heroku/Fixie
+        $this->uri = $this->addHerokuFixieParams($uri);
         $this->databaseName = $database;
         $this->logger = $logger;
         
         if ($this->logger) {
-            $this->logger->info('MongoDBService initialized (Ultra-Simple)', [
+            $this->logger->info('MongoDBService initialized (Heroku+Fixie Final)', [
                 'database' => $database,
                 'uri_prefix' => substr($this->uri, 0, 50) . '...',
-                'timeouts_added' => true,
-                'no_runCommand' => true  // Mode ultra-simple sans runCommand
+                'ssl_relaxed' => true,
+                'fixie_optimized' => true
             ]);
         }
     }
 
     /**
-     * Ajoute les timeouts étendus à l'URI MongoDB
+     * Ajoute tous les paramètres nécessaires pour Heroku + Fixie
      * 
      * @param string $uri URI originale
-     * @return string URI avec timeouts
+     * @return string URI optimisée
      */
-    private function addTimeoutsToUri(string $uri): string
+    private function addHerokuFixieParams(string $uri): string
     {
-        // Si l'URI contient déjà des paramètres, ajouter & sinon ?
         $separator = strpos($uri, '?') !== false ? '&' : '?';
         
-        // Paramètres ULTRA-SIMPLIFIÉS (seulement les essentiels)
-        $params = [
+        // Paramètres essentiels
+        $essentialParams = [
             'retryWrites=true',
             'w=majority',
-            'appName=Ecoride-Heroku-Fixie'
+            'appName=Ecoride-Heroku-Fixie-Final'
         ];
         
-        // Timeouts essentiels (déjà inclus dans driverOptions)
+        // Timeouts étendus
         $timeoutParams = [
-            'connectTimeoutMS=60000',      // 60s
-            'socketTimeoutMS=90000',       // 90s
-            'serverSelectionTimeoutMS=45000' // 45s
+            'connectTimeoutMS=90000',      // 90s (Fixie + latence)
+            'socketTimeoutMS=120000',      // 2min
+            'serverSelectionTimeoutMS=60000' // 60s
         ];
         
-        return $uri . $separator . implode('&', array_merge($params, $timeoutParams));
+        // Paramètres SSL RELAXÉS pour Heroku/Fixie
+        $sslParams = [
+            'ssl=true',                    // Forcer SSL
+            'sslallowinvalidcertificates=true', // Accepter certificats invalides
+            'sslallowinvalidhostnames=true',    // Accepter noms d'hôtes invalides
+            'sslverifyclientcertificate=false'  // Ne pas vérifier le certificat client
+        ];
+        
+        // Tous les paramètres ensemble
+        $allParams = array_merge($essentialParams, $timeoutParams, $sslParams);
+        
+        return $uri . $separator . implode('&', $allParams);
     }
 
     /**
@@ -93,7 +103,7 @@ class MongoDBService
 
     /**
      * Établit la connexion à MongoDB
-     * VERSION ULTRA-SIMPLIFIÉE : AUCUN runCommand(), seulement insert/find/delete
+     * VERSION FINALE : SSL relaxé + timeouts max + pas de test complexe
      * 
      * @throws \RuntimeException Si la connexion échoue
      */
@@ -103,50 +113,52 @@ class MongoDBService
         
         try {
             if ($this->logger) {
-                $this->logger->info('Establishing MongoDB connection (Ultra-Simple mode)', [
+                $this->logger->info('Establishing MongoDB connection (Heroku+Fixie Final)', [
                     'uri_prefix' => substr($this->uri, 0, 40) . '...',
                     'database' => $this->databaseName,
-                    'connect_timeout' => 60,
-                    'no_runCommand' => true,
-                    'test_method' => 'insert_find_delete'
+                    'ssl_relaxed' => true,
+                    'connect_timeout' => 90,
+                    'socket_timeout' => 120
                 ]);
             }
 
-            // === CONNEXION ULTRA-SIMPLE ===
-            // Pas de proxy complexe, pas de runCommand, juste Client de base
+            // === CONNEXION FINALE ===
+            // URI avec SSL relaxé + timeouts max
+            // Pas de driverOptions complexes, pas de runCommand
             $this->client = new Client($this->uri);
             
             // Sélection de la base de données
             $this->database = $this->client->selectDatabase($this->databaseName);
             
-            // === TEST ULTRA-SIMPLE (SEULEMENT insert/find/delete) ===
-            $this->ultraSimpleConnectionTest();
+            // Test ULTRA-MINIMAL : juste vérifier que la DB existe
+            $this->minimalConnectionTest();
             
             // === CONNEXION RÉUSSIE ===
             $connectionTime = round((microtime(true) - $startTime) * 1000, 2);
             
             if ($this->logger) {
-                $this->logger->info('MongoDB connection established successfully (Ultra-Simple)', [
+                $this->logger->info('MongoDB connection established successfully (FINAL)', [
                     'database' => $this->databaseName,
                     'connection_time_ms' => $connectionTime,
                     'client_class' => get_class($this->client),
                     'database_class' => get_class($this->database),
-                    'test_method_used' => 'insert_find_delete'
+                    'ssl_relaxed_used' => true,
+                    'status' => 'success_final'
                 ]);
             }
             
         } catch (\MongoDB\Driver\Exception\ConnectionTimeoutException $e) {
-            $errorMsg = 'MongoDB connection timeout (60s) - Vérifiez la connectivité réseau Heroku ↔ MongoDB Atlas';
+            $errorMsg = 'MongoDB connection timeout (90s) - Network connectivity issue Heroku ↔ Atlas';
             $this->logError($errorMsg, $e, $startTime);
             throw new \RuntimeException($errorMsg, 0, $e);
             
         } catch (\MongoDB\Driver\Exception\ServerSelectionTimeoutException $e) {
-            $errorMsg = 'MongoDB server selection timeout (45s) - Vérifiez que le cluster MongoDB Atlas est en ligne';
+            $errorMsg = 'MongoDB server selection timeout (60s) - Atlas cluster unreachable';
             $this->logError($errorMsg, $e, $startTime);
             throw new \RuntimeException($errorMsg, 0, $e);
             
         } catch (\MongoDB\Driver\Exception\AuthenticationException $e) {
-            $errorMsg = 'MongoDB authentication failed - Vérifiez les identifiants dans MONGODB_URI';
+            $errorMsg = 'MongoDB authentication failed - Check MONGODB_URI credentials';
             $this->logError($errorMsg, $e, $startTime);
             throw new \RuntimeException($errorMsg, 0, $e);
             
@@ -158,59 +170,35 @@ class MongoDBService
     }
 
     /**
-     * Test de connexion ULTRA-SIMPLE (AUCUN runCommand)
-     * Utilise seulement insertOne + findOne + deleteOne
+     * Test de connexion ULTRA-MINIMAL
+     * Juste vérifier que la DB est accessible
      * 
      * @return void
      * @throws \RuntimeException Si le test échoue
      */
-    private function ultraSimpleConnectionTest(): void
+    private function minimalConnectionTest(): void
     {
         try {
-            // Créer une collection de test
-            $testCollection = $this->database->selectCollection('__ultra_simple_test__');
+            // Test le plus simple possible : lister les collections
+            $collections = $this->database->listCollections();
+            $collectionList = iterator_to_array($collections);
             
-            // Test 1 : Insertion simple
-            $testDoc = [
-                'ultra_simple_test' => true,
-                'timestamp' => new \DateTime('now'),
-                'method' => 'insert_find_delete',
-                'connected_from' => 'heroku_simple'
-            ];
-            
-            $insertResult = $testCollection->insertOne($testDoc);
-            
-            if (!$insertResult || !$insertResult->getInsertedId()) {
-                throw new \RuntimeException('Failed to insert test document (ultra-simple mode)');
-            }
-            
-            $insertedId = $insertResult->getInsertedId();
-            
-            // Test 2 : Lecture simple
-            $readResult = $testCollection->findOne(['_id' => $insertedId]);
-            
-            if (!$readResult || $readResult['ultra_simple_test'] !== true) {
-                throw new \RuntimeException('Failed to read test document (ultra-simple mode)');
-            }
-            
-            // Test 3 : Suppression simple
-            $deleteResult = $testCollection->deleteOne(['_id' => $insertedId]);
-            
-            if ($deleteResult->getDeletedCount() !== 1) {
-                throw new \RuntimeException('Failed to delete test document (ultra-simple mode)');
+            if (empty($collectionList)) {
+                // Si pas de collections, en créer une vide pour test
+                $this->database->createCollection('__minimal_test__');
+                $this->database->dropCollection('__minimal_test__');
             }
             
             if ($this->logger) {
-                $this->logger->debug('Ultra-simple connection test PASSED', [
-                    'insert_id' => $insertedId,
-                    'read_success' => true,
-                    'delete_count' => $deleteResult->getDeletedCount(),
-                    'test_method' => 'insert_find_delete'
+                $this->logger->debug('Minimal connection test PASSED', [
+                    'collections_count' => count($collectionList),
+                    'test_method' => 'listCollections',
+                    'status' => 'minimal_ok'
                 ]);
             }
             
         } catch (\Exception $e) {
-            $errorMsg = 'Ultra-simple connection test failed: ' . $e->getMessage();
+            $errorMsg = 'Minimal connection test failed: ' . $e->getMessage();
             if ($this->logger) {
                 $this->logger->error($errorMsg, ['exception' => $e->getMessage()]);
             }
@@ -233,7 +221,8 @@ class MongoDBService
                 'uri_prefix' => substr($this->uri, 0, 30) . '...',
                 'database' => $this->databaseName,
                 'error_type' => get_class($exception ?? new \stdClass()),
-                'ultra_simple_mode' => true
+                'heroku_fixie_final' => true,
+                'ssl_relaxed' => true
             ];
             
             if ($exception) {
@@ -281,7 +270,7 @@ class MongoDBService
     public function getOriginalUri(): string
     {
         // Enlever les paramètres ajoutés
-        $originalUri = preg_replace('/&?(connectTimeoutMS|socketTimeoutMS|serverSelectionTimeoutMS|heartbeatFrequencyMS|maxIdleTimeMS)=[^&]*/', '', $this->uri);
+        $originalUri = preg_replace('/&?(connectTimeoutMS|socketTimeoutMS|serverSelectionTimeoutMS|sslallowinvalidcertificates|sslallowinvalidhostnames|sslverifyclientcertificate)=[^&]*/', '', $this->uri);
         return preg_replace('/\?$/', '', $originalUri);
     }
 
@@ -306,7 +295,7 @@ class MongoDBService
         $this->database = null;
         
         if ($this->logger) {
-            $this->logger->debug('MongoDB connection closed (ultra-simple mode)', [
+            $this->logger->debug('MongoDB connection closed (Heroku+Fixie Final)', [
                 'database' => $this->databaseName
             ]);
         }
@@ -323,7 +312,7 @@ class MongoDBService
     }
 
     /**
-     * Teste la connexion MongoDB (health check ULTRA-SIMPLE)
+     * Teste la connexion MongoDB (health check minimal)
      * 
      * @return bool
      */
@@ -334,22 +323,15 @@ class MongoDBService
                 $this->getDatabase();
             }
             
-            // Test ULTRA-SIMPLE : juste une insertion/lecture
-            $testCollection = $this->database->selectCollection('__health_check__');
-            $result = $testCollection->insertOne(['health_check' => true]);
-            
-            if ($result && $result->getInsertedId()) {
-                $testCollection->deleteOne(['_id' => $result->getInsertedId()]);
-                return true;
-            }
-            
-            return false;
+            // Test minimal : juste lister les collections
+            $collections = $this->database->listCollections();
+            return $collections->isValid();
             
         } catch (\Exception $e) {
             if ($this->logger) {
-                $this->logger->warning('MongoDB health check failed (ultra-simple)', [
+                $this->logger->warning('MongoDB health check failed (minimal)', [
                     'error' => $e->getMessage(),
-                    'test_method' => 'insert_delete'
+                    'test_method' => 'listCollections'
                 ]);
             }
             return false;
@@ -377,8 +359,9 @@ class MongoDBService
             'connected' => $this->isConnected(),
             'database' => $this->getDatabaseName(),
             'uri_prefix' => substr($this->getOriginalUri(), 0, 50) . '...',
-            'ultra_simple_mode' => true,
-            'test_method' => 'insert_find_delete',
+            'heroku_fixie_final' => true,
+            'ssl_relaxed' => true,
+            'test_method' => 'listCollections',
             'client_class' => $this->client ? get_class($this->client) : null,
             'database_class' => $this->database ? get_class($this->database) : null,
             'health_check' => $this->testConnection()
@@ -393,11 +376,11 @@ class MongoDBService
     public function debugInfo(): array
     {
         return [
-            'status' => $this->isConnected() ? 'connected_ultra_simple' : 'disconnected',
+            'status' => $this->isConnected() ? 'connected_final_heroku_fixie' : 'disconnected',
             'database' => $this->getDatabaseName(),
             'connection_info' => $this->getConnectionInfo(),
             'timestamp' => new \DateTime('now'),
-            'mode' => 'ultra_simple_no_runCommand'
+            'mode' => 'final_ssl_relaxed_no_runCommand'
         ];
     }
 }

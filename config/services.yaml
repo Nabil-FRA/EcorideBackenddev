@@ -1,8 +1,13 @@
 services:
     # default configuration for services in *this* file
     _defaults:
+        # automatically injects dependencies in your services
         autowire: true
+        # automatically registers your services as commands, event subscribers, etc.
         autoconfigure: true
+        # this means you cannot fetch services directly from the container via $container->get()
+        # if you need to do this, you can override this setting on individual services
+        public: false
 
     App\:
         resource: '../src/'
@@ -11,8 +16,10 @@ services:
             - '../src/Entity/'
             - '../src/Kernel.php'
 
-    # Configuration du service MongoDB
+    # Configuration du service MongoDB (version unique et complète)
     App\Service\MongoDBService:
         arguments:
             $uri: '%env(MONGODB_URI)%'
             $database: '%env(MONGODB_DB)%'
+            $logger: '@logger'
+        public: true

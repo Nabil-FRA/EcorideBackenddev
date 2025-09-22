@@ -95,32 +95,44 @@ class AdminController extends AbstractController
     }
 
     #[Route('/api/stats', name: 'statistiques', methods: ['GET'])]
-    public function index(EntityManagerInterface $entityManager): JsonResponse
-    {
-        // Récupérer les covoiturages par jour avec SUBSTRING pour éviter l'erreur DATE
-        $covoituragesParJour = $entityManager->createQuery(
-            'SELECT SUBSTRING(c.dateDepart, 1, 10) as jour, COUNT(c.id) as total 
-             FROM App\\Entity\\Covoiturage c 
-             GROUP BY jour'
-        )->getResult();
+public function index(EntityManagerInterface $entityManager): JsonResponse
+{
+    // Astuce pour forcer la conversion de la date en chaîne de caractères
+    // avant d'appliquer SUBSTRING.
+    $covoituragesParJour = $entityManager->createQuery(
+        'SELECT SUBSTRING(CONCAT(c.dateDepart, \'\'), 1, 10) as jour, COUNT(c.id) as total 
+         FROM App\\Entity\\Covoiturage c 
+         GROUP BY jour'
+    )->getResult();
 
-        // Calculer les crédits par jour
-        $creditsParJour = $entityManager->createQuery(
-            'SELECT SUBSTRING(c.dateDepart, 1, 10) as jour, SUM(2) as credits 
-             FROM App\\Entity\\Covoiturage c 
-             GROUP BY jour'
-        )->getResult();
+    // Même astuce ici, et utilisation de COUNT * 2 pour plus de clarté.
+    $creditsParJour = $entityManager->createQuery(
+        'SELECT SUBSTRING(CONCAT(c.dateDepart, \'\'), 1, 10) as jour, (COUNT(c.id) * 2) as credits 
+         FROM App\\Entity\\Covoiturage c 
+         GROUP BY jour'
+    )->getResult();
 
-        // Nombre total de crédits gagnés (20 crédits par utilisateur moins 2 crédits par covoiturage)
-        $totalCredits = $entityManager->createQuery(
-            'SELECT (COUNT(u.id) * 20) - (COUNT(c.id) * 2) as totalCredits 
-             FROM App\\Entity\\Utilisateur u, App\\Entity\\Covoiturage c'
-        )->getSingleScalarResult();
+    // --- CORRECTION MAJEURE : Calcul du total des crédits ---
+    // On doit compter les utilisateurs et les covoiturages SÉPARÉMENT
+    // pour éviter un produit cartésien qui fausse complètement les chiffres.
+    
+    // 1. Compter le nombre total d'utilisateurs
+    $totalUtilisateurs = $entityManager->createQuery(
+        'SELECT COUNT(u.id) FROM App\\Entity\\Utilisateur u'
+    )->getSingleScalarResult();
 
-        return new JsonResponse([
-            'covoiturages' => $covoituragesParJour,
-            'credits' => $creditsParJour,
-            'totalCredits' => $totalCredits,
-        ]);
-    }
+    // 2. Compter le nombre total de covoiturages
+    $totalCovoiturages = $entityManager->createQuery(
+        'SELECT COUNT(c.id) FROM App\\Entity\\Covoiturage c'
+    )->getSingleScalarResult();
+
+    // 3. Calculer le total des crédits en PHP
+    $totalCredits = ($totalUtilisateurs * 20) - ($totalCovoiturages * 2);
+
+    return new JsonResponse([
+        'covoiturages' => $covoituragesParJour,
+        'credits' => $creditsParJour,
+        'totalCredits' => $totalCredits,
+    ]);
+}
 }

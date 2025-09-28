@@ -9,12 +9,38 @@ use Symfony\Component\Routing\Annotation\Route;
 use App\Entity\Utilisateur;
 use Doctrine\ORM\EntityManagerInterface;
 use App\Entity\Gere;
+use OpenApi\Attributes as OA; // Ajout de l'import pour OpenAPI
 
-
-
+#[Route('/api/voitures')]
 class VoitureController extends AbstractController
 {
-    #[Route('/api/voitures/utilisateur', name: 'get_voitures_utilisateur', methods: ['GET'])]
+    /**
+     * Récupère la liste des voitures de l'utilisateur connecté.
+     */
+    #[OA\Tag(name: "Voiture")]
+    #[OA\Response(
+        response: 200,
+        description: "Retourne la liste des voitures de l'utilisateur.",
+        content: new OA\JsonContent(
+            type: 'array',
+            items: new OA\Items(properties: [
+                new OA\Property(property: 'id', type: 'integer', example: 1),
+                new OA\Property(property: 'marque', type: 'string', example: 'Renault'),
+                new OA\Property(property: 'modele', type: 'string', example: 'Clio'),
+                new OA\Property(property: 'energie', type: 'string', example: 'Essence')
+            ])
+        )
+    )]
+    #[OA\Response(
+        response: 401,
+        description: "Utilisateur non authentifié."
+    )]
+    #[OA\Response(
+        response: 404,
+        description: "Aucune voiture trouvée pour cet utilisateur."
+    )]
+    #[OA\Security(name: "Bearer")] // Indique que cette route nécessite une authentification
+    #[Route('/utilisateur', name: 'get_voitures_utilisateur', methods: ['GET'])]
     public function getVoituresUtilisateur(EntityManagerInterface $entityManager): JsonResponse
     {
         $user = $this->getUser();

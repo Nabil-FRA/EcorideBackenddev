@@ -10,13 +10,53 @@ use Symfony\Component\Security\Core\Security;
 use Doctrine\ORM\EntityManagerInterface;
 use App\Entity\Covoiturage;
 use App\Entity\Participe;
+use OpenApi\Attributes as OA;
 
-
-
-
+#[Route('/api/mongo')]
+#[OA\Tag(name: 'Historique')]
 class CovoiturageHistoryController extends AbstractController
 {
-    #[Route('/mongo/historique_covoiturage', name: 'insert_covoiturage_history')]
+    /**
+     * Insère et récupère les covoiturages terminés dans l'historique MongoDB.
+     */
+    #[OA\Response(
+        response: 200,
+        description: "Retourne l'historique complet des covoiturages terminés.",
+        content: new OA\JsonContent(
+            type: 'array',
+            items: new OA\Items(
+                example: [
+                    "_id" => "6515a8b9e4b0b8e8a8d1c1b2",
+                    "covoiturage_id" => 101,
+                    "participants" => [
+                        ["name" => "Dupont Jean", "role" => "passager"],
+                        ["name" => "Martin Sophie", "role" => "chauffeur"]
+                    ],
+                    "departure" => "Paris",
+                    "destination" => "Lyon",
+                    "date_depart" => "2023-09-28",
+                    "date_arrivee" => "2023-09-28",
+                    "price" => 25.50,
+                    "statut" => "terminé"
+                ],
+                properties: [
+                    new OA\Property(property: '_id', type: 'string'),
+                    new OA\Property(property: 'covoiturage_id', type: 'integer'),
+                    new OA\Property(property: 'participants', type: 'array', items: new OA\Items(properties: [
+                        new OA\Property(property: 'name', type: 'string'),
+                        new OA\Property(property: 'role', type: 'string')
+                    ])),
+                    new OA\Property(property: 'departure', type: 'string'),
+                    new OA\Property(property: 'destination', type: 'string'),
+                    new OA\Property(property: 'date_depart', type: 'string', format: 'date'),
+                    new OA\Property(property: 'date_arrivee', type: 'string', format: 'date'),
+                    new OA\Property(property: 'price', type: 'number'),
+                    new OA\Property(property: 'statut', type: 'string')
+                ]
+            )
+        )
+    )]
+    #[Route('/historique_covoiturage', name: 'insert_covoiturage_history', methods: ['GET'])]
     public function insertHistory(EntityManagerInterface $em, MongoDBService $mongoDBService): Response
     {
         $db = $mongoDBService->getDatabase();
@@ -60,3 +100,4 @@ class CovoiturageHistoryController extends AbstractController
         return $this->json($history);
     }
 }
+

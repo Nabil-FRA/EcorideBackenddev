@@ -5,18 +5,52 @@ namespace App\Controller;
 use App\Entity\Covoiturage;
 use App\Entity\Participe;
 use App\Entity\Utilisateur;
-use App\Service\MongoDBService; // <-- AJOUT IMPORTANT
+use App\Service\MongoDBService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
-// La ligne "use MongoDB\Client as MongoDBClient;" a été supprimée car elle n'est plus nécessaire
+use OpenApi\Attributes as OA;
 
+#[Route('/api/covoiturage')]
+#[OA\Tag(name: "Participation")]
 class ParticipationController extends AbstractController
 {
-    #[Route('/api/covoiturage/{id}/participer', name: 'covoiturage_participer', methods: ['POST'])]
-    public function participer(int $id, EntityManagerInterface $entityManager, Request $request, MongoDBService $mongoDBService): Response // <-- AJOUT DU SERVICE ICI
+    /**
+     * Permet à un utilisateur de participer à un covoiturage.
+     */
+    #[OA\Security(name: "Bearer")]
+    #[OA\Parameter(
+        name: 'id',
+        in: 'path',
+        description: "L'ID du covoiturage auquel participer.",
+        required: true,
+        schema: new OA\Schema(type: 'integer')
+    )]
+    #[OA\Parameter(
+        name: 'confirm',
+        in: 'query',
+        description: "Mettre à 'true' ou '1' pour confirmer la participation et débiter les crédits. Sans ce paramètre, la route renvoie un message de confirmation.",
+        required: false,
+        schema: new OA\Schema(type: 'boolean')
+    )]
+    #[OA\Response(
+        response: 200,
+        description: "Participation confirmée avec succès.",
+        content: new OA\JsonContent(properties: [
+            new OA\Property(property: 'message', type: 'string', example: 'Participation confirmée et enregistrée dans MongoDB'),
+            new OA\Property(property: 'creditsRestants', type: 'integer', example: 18)
+        ])
+    )]
+    #[OA\Response(response: 202, description: "Confirmation requise. L'utilisateur doit rappeler l'API avec le paramètre `?confirm=true`.")]
+    #[OA\Response(response: 400, description: "Plus de places disponibles.")]
+    #[OA\Response(response: 401, description: "Utilisateur non authentifié.")]
+    #[OA\Response(response: 402, description: "Crédits insuffisants.")]
+    #[OA\Response(response: 403, description: "Seuls les passagers peuvent participer.")]
+    #[OA\Response(response: 404, description: "Covoiturage introuvable.")]
+    #[Route('/{id}/participer', name: 'covoiturage_participer', methods: ['POST'])]
+    public function participer(int $id, EntityManagerInterface $entityManager, Request $request, MongoDBService $mongoDBService): Response
     {
         $utilisateur = $this->getUser();
         if (!$utilisateur) {
@@ -56,9 +90,6 @@ class ParticipationController extends AbstractController
         $entityManager->persist($participation);
         $entityManager->flush();
 
-        // ---------------------------
-        // Enregistrement dans MongoDB (Version Corrigée)
-        // ---------------------------
         $db = $mongoDBService->getDatabase();
         $collection = $db->selectCollection('participations');
 

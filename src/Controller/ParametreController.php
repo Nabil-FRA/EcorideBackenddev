@@ -11,8 +11,10 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\HttpFoundation\Response;
+use OpenApi\Attributes as OA;
 
 #[Route('/api/parametre')]
+#[OA\Tag(name: 'Parametres')]
 class ParametreController extends AbstractController
 {
     private EntityManagerInterface $entityManager;
@@ -29,7 +31,22 @@ class ParametreController extends AbstractController
         $this->serializer = $serializer;
     }
 
-    #[Route('/', methods: ['GET'])]
+    /**
+     * Liste tous les paramètres.
+     */
+    #[OA\Response(
+        response: 200,
+        description: "Retourne la liste de tous les paramètres.",
+        content: new OA\JsonContent(
+            type: 'array',
+            items: new OA\Items(properties: [
+                new OA\Property(property: 'id', type: 'integer', example: 1),
+                new OA\Property(property: 'propriete', type: 'string', example: 'Fumeur'),
+                new OA\Property(property: 'valeur', type: 'string', example: 'Non')
+            ])
+        )
+    )]
+    #[Route('/', name: 'app_parametre_index', methods: ['GET'])]
     public function index(): JsonResponse
     {
         $parametres = $this->parametreRepository->findAll();
@@ -38,7 +55,21 @@ class ParametreController extends AbstractController
         return new JsonResponse($data, Response::HTTP_OK, [], true);
     }
 
-    #[Route('/{id}', methods: ['GET'])]
+    /**
+     * Affiche un paramètre spécifique par ID.
+     */
+    #[OA\Parameter(name: 'id', in: 'path', description: "L'ID du paramètre", required: true)]
+    #[OA\Response(
+        response: 200,
+        description: "Retourne le paramètre demandé.",
+        content: new OA\JsonContent(properties: [
+            new OA\Property(property: 'id', type: 'integer', example: 1),
+            new OA\Property(property: 'propriete', type: 'string', example: 'Fumeur'),
+            new OA\Property(property: 'valeur', type: 'string', example: 'Non')
+        ])
+    )]
+    #[OA\Response(response: 404, description: "Paramètre non trouvé.")]
+    #[Route('/{id}', name: 'app_parametre_show', methods: ['GET'])]
     public function show(int $id): JsonResponse
     {
         $parametre = $this->parametreRepository->find($id);
@@ -51,7 +82,28 @@ class ParametreController extends AbstractController
         return new JsonResponse($data, Response::HTTP_OK, [], true);
     }
 
-    #[Route('/', methods: ['POST'])]
+    /**
+     * Crée un nouveau paramètre.
+     */
+    #[OA\RequestBody(
+        description: "Données pour la création d'un nouveau paramètre.",
+        required: true,
+        content: new OA\JsonContent(properties: [
+            new OA\Property(property: 'propriete', type: 'string', example: 'Animaux'),
+            new OA\Property(property: 'valeur', type: 'string', example: 'Acceptés')
+        ])
+    )]
+    #[OA\Response(
+        response: 201,
+        description: "Paramètre créé avec succès.",
+        content: new OA\JsonContent(properties: [
+            new OA\Property(property: 'id', type: 'integer', example: 3),
+            new OA\Property(property: 'propriete', type: 'string', example: 'Animaux'),
+            new OA\Property(property: 'valeur', type: 'string', example: 'Acceptés')
+        ])
+    )]
+    #[OA\Response(response: 400, description: "Données invalides ou manquantes.")]
+    #[Route('/', name: 'app_parametre_create', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
@@ -67,7 +119,20 @@ class ParametreController extends AbstractController
         return new JsonResponse($response, Response::HTTP_CREATED, [], true);
     }
 
-    #[Route('/{id}', methods: ['PUT'])]
+    /**
+     * Met à jour un paramètre existant.
+     */
+    #[OA\Parameter(name: 'id', in: 'path', description: "L'ID du paramètre à mettre à jour", required: true)]
+    #[OA\RequestBody(
+        description: "Données pour la mise à jour du paramètre.",
+        required: true,
+        content: new OA\JsonContent(properties: [
+            new OA\Property(property: 'valeur', type: 'string', example: 'Refusés')
+        ])
+    )]
+    #[OA\Response(response: 200, description: "Paramètre mis à jour avec succès.")]
+    #[OA\Response(response: 404, description: "Paramètre non trouvé.")]
+    #[Route('/{id}', name: 'app_parametre_update', methods: ['PUT'])]
     public function update(Request $request, int $id): JsonResponse
     {
         $parametre = $this->parametreRepository->find($id);
@@ -86,7 +151,13 @@ class ParametreController extends AbstractController
         return new JsonResponse($response, Response::HTTP_OK, [], true);
     }
 
-    #[Route('/{id}', methods: ['DELETE'])]
+    /**
+     * Supprime un paramètre.
+     */
+    #[OA\Parameter(name: 'id', in: 'path', description: "L'ID du paramètre à supprimer", required: true)]
+    #[OA\Response(response: 204, description: "Paramètre supprimé avec succès.")]
+    #[OA\Response(response: 404, description: "Paramètre non trouvé.")]
+    #[Route('/{id}', name: 'app_parametre_delete', methods: ['DELETE'])]
     public function delete(int $id): JsonResponse
     {
         $parametre = $this->parametreRepository->find($id);
@@ -98,6 +169,6 @@ class ParametreController extends AbstractController
         $this->entityManager->remove($parametre);
         $this->entityManager->flush();
 
-        return new JsonResponse(['message' => 'Parametre deleted successfully'], Response::HTTP_NO_CONTENT);
+        return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 }

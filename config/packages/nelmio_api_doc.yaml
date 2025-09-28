@@ -1,13 +1,18 @@
 nelmio_api_doc:
     documentation:
         info:
-            title: My App
-            description: This is an awesome app!
+            title: 'EcoRide API' 
+            description: 'L''API officielle pour la plateforme de covoiturage EcoRide.' 
             version: 1.0.0
         servers:
             - url: '%env(APP_URL)%'
-              description: Production server
+              description: 'Serveur de production Heroku'
+    
+   
     areas:
-        default:
-            path_patterns:
-                - ^/api(?!/doc$) # Documente toutes les routes sous /api sauf /api/doc
+        path_patterns:
+            - ^/api(?!/doc$) # Scanne toutes les routes sous /api
+
+    # Ligne de sécurité pour éviter les conflits avec d'autres bundles
+    models: { use_jms: false }
+

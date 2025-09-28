@@ -85,7 +85,7 @@ class CovoiturageController extends AbstractController
             }
             $dateObj = new \DateTime($date);
 
-            $covoiturages = $covoiturageRepository->findAvailable($depart, $arrivee, $dateObj);
+            $covoiturages = $covoiturageRepository->findAvailable($depart, $arrivee, $date);
 
             if (empty($covoiturages)) {
                 $prochainCovoiturage = $covoiturageRepository->findNextAvailableCovoiturage($depart, $arrivee, $dateObj);

@@ -27,6 +27,7 @@ class SecurityController extends AbstractController
 
     #[OA\Tag(name: "Authentification")]
     #[OA\Summary("Crée un nouvel utilisateur (client ou employé).")]
+    #[OA\Description("Cette route permet d'enregistrer un nouvel utilisateur en fournissant un nom, un prénom, un email et un mot de passe.")]
     #[OA\RequestBody(
         description: "Données de l'utilisateur pour l'inscription",
         required: true,

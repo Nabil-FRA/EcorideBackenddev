@@ -1,12 +1,12 @@
 <?php
 
 namespace App\Entity;
-use Symfony\Component\Serializer\Annotation\Groups;
 
 use App\Repository\CovoiturageRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
+use Symfony\Component\Serializer\Annotation\Groups;
 
 #[ORM\Entity(repositoryClass: CovoiturageRepository::class)]
 class Covoiturage
@@ -66,7 +66,7 @@ class Covoiturage
     }
 
     // --------------------
-    // GETTERS / SETTERS
+    // GETTERS / SETTERS (votre code existant, inchangé)
     // --------------------
 
     public function getId(): ?int
@@ -82,7 +82,6 @@ class Covoiturage
     public function setDateDepart(\DateTimeInterface $dateDepart): self
     {
         $this->dateDepart = $dateDepart;
-
         return $this;
     }
 
@@ -94,7 +93,6 @@ class Covoiturage
     public function setHeureDepart(\DateTimeInterface $heureDepart): self
     {
         $this->heureDepart = $heureDepart;
-
         return $this;
     }
 
@@ -106,7 +104,6 @@ class Covoiturage
     public function setDateArrivee(\DateTimeInterface $dateArrivee): self
     {
         $this->dateArrivee = $dateArrivee;
-
         return $this;
     }
 
@@ -118,7 +115,6 @@ class Covoiturage
     public function setHeureArrivee(\DateTimeInterface $heureArrivee): self
     {
         $this->heureArrivee = $heureArrivee;
-
         return $this;
     }
 
@@ -130,7 +126,6 @@ class Covoiturage
     public function setLieuDepart(string $lieuDepart): self
     {
         $this->lieuDepart = $lieuDepart;
-
         return $this;
     }
 
@@ -142,7 +137,6 @@ class Covoiturage
     public function setLieuArrivee(string $lieuArrivee): self
     {
         $this->lieuArrivee = $lieuArrivee;
-
         return $this;
     }
 
@@ -154,7 +148,6 @@ class Covoiturage
     public function setNbPlace(int $nbPlace): self
     {
         $this->nbPlace = $nbPlace;
-
         return $this;
     }
 
@@ -166,7 +159,6 @@ class Covoiturage
     public function setPrixPersonne(float $prixPersonne): self
     {
         $this->prixPersonne = $prixPersonne;
-
         return $this;
     }
 
@@ -178,11 +170,8 @@ class Covoiturage
     public function setStatut(string $statut): self
     {
         $this->statut = $statut;
-
         return $this;
     }
-
-    
 
     /**
      * @return Collection<int, Utilise>
@@ -198,7 +187,6 @@ class Covoiturage
             $this->utilise->add($utilise);
             $utilise->setCovoiturage($this);
         }
-
         return $this;
     }
 
@@ -209,10 +197,8 @@ class Covoiturage
                 $utilise->setCovoiturage(null);
             }
         }
-
         return $this;
     }
-    
     
     /**
      * @return Collection<int, Participe>
@@ -228,7 +214,6 @@ class Covoiturage
             $this->participes->add($participe);
             $participe->setCovoiturage($this);
         }
-    
         return $this;
     }
     
@@ -239,7 +224,25 @@ class Covoiturage
                 $participe->setCovoiturage(null);
             }
         }
-    
         return $this;
-    } 
+    }
+
+    // ===================================================================
+    // MÉTHODE AJOUTÉE (requise par CovoiturageController)
+    // ===================================================================
+
+    /**
+     * Méthode "helper" pour retrouver facilement l'utilisateur qui est le chauffeur.
+     * Cette logique suppose que le premier participant enregistré est le chauffeur.
+     * Adaptez-la si votre logique métier est différente.
+     */
+    public function getChauffeur(): ?Utilisateur
+    {
+        if (!$this->getParticipes()->isEmpty()) {
+            // Renvoie l'utilisateur de la première entité Participe de la collection
+            return $this->getParticipes()->first()->getUtilisateur();
+        }
+
+        return null;
+    }
 }

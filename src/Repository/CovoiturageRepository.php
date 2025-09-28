@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\Covoiturage;
+use App\Entity\Utilisateur; // N'oubliez pas d'ajouter cette ligne
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -15,37 +16,38 @@ class CovoiturageRepository extends ServiceEntityRepository
     {
         parent::__construct($registry, Covoiturage::class);
     }
+    
     public function findAvailable(string $depart, string $arrivee, string $date)
-{
-    return $this->createQueryBuilder('c')
-        ->where('c.lieuDepart = :depart')  
-        ->andWhere('c.lieuArrivee = :arrivee')  
-        ->andWhere('c.dateDepart = :date')
-        ->andWhere('c.nbPlace > 0')
-        ->setParameter('depart', $depart)
-        ->setParameter('arrivee', $arrivee)
-        ->setParameter('date', new \DateTime($date))
-        ->getQuery()
-        ->getResult();
-}
+    {
+        return $this->createQueryBuilder('c')
+            ->where('c.lieuDepart = :depart')  
+            ->andWhere('c.lieuArrivee = :arrivee')  
+            ->andWhere('c.dateDepart = :date')
+            ->andWhere('c.nbPlace > 0')
+            ->setParameter('depart', $depart)
+            ->setParameter('arrivee', $arrivee)
+            ->setParameter('date', new \DateTime($date))
+            ->getQuery()
+            ->getResult();
+    }
 
-public function findNextAvailableCovoiturage(string $depart, string $arrivee, \DateTimeInterface $date): ?Covoiturage
-{
-    return $this->createQueryBuilder('c')
-        ->where('c.lieuDepart = :depart')
-        ->andWhere('c.lieuArrivee = :arrivee')
-        // Recherche d'un covoiturage dont la date de départ est après la date spécifiée
-        ->andWhere('c.dateDepart > :date')
-        ->andWhere('c.nbPlace > 0')
-        ->setParameter('depart', $depart)
-        ->setParameter('arrivee', $arrivee)
-        ->setParameter('date', $date)
-        // Trie par date de départ ascendante pour obtenir le plus proche dans le futur
-        ->orderBy('c.dateDepart', 'ASC')
-        ->setMaxResults(1)
-        ->getQuery()
-        ->getOneOrNullResult();
-}
+    public function findNextAvailableCovoiturage(string $depart, string $arrivee, \DateTimeInterface $date): ?Covoiturage
+    {
+        return $this->createQueryBuilder('c')
+            ->where('c.lieuDepart = :depart')
+            ->andWhere('c.lieuArrivee = :arrivee')
+            // Recherche d'un covoiturage dont la date de départ est après la date spécifiée
+            ->andWhere('c.dateDepart > :date')
+            ->andWhere('c.nbPlace > 0')
+            ->setParameter('depart', $depart)
+            ->setParameter('arrivee', $arrivee)
+            ->setParameter('date', $date)
+            // Trie par date de départ ascendante pour obtenir le plus proche dans le futur
+            ->orderBy('c.dateDepart', 'ASC')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
 
     /**
      * Trouve un covoiturage avec toutes ses relations chargées.
@@ -99,12 +101,12 @@ public function findNextAvailableCovoiturage(string $depart, string $arrivee, \D
     
         if ($prixMax !== null) {
             $qb->andWhere('c.prixPersonne <= :prixMax')
-               ->setParameter('prixMax', $prixMax);
+                ->setParameter('prixMax', $prixMax);
         }
     
         if ($noteMin !== null) {
             $qb->having('AVG(a.note) >= :noteMin')
-               ->setParameter('noteMin', $noteMin);
+                ->setParameter('noteMin', $noteMin);
         }
     
         $results = $qb->getQuery()->getResult();
@@ -127,5 +129,25 @@ public function findNextAvailableCovoiturage(string $depart, string $arrivee, \D
         return $results;
     }
     
-
+    // ===================================================================
+    // MÉTHODE AJOUTÉE (requise par CovoiturageController)
+    // ===================================================================
+    
+    /**
+     * Trouve les covoiturages à venir (statut disponible/confirmé) pour un utilisateur donné.
+     * @return Covoiturage[]
+     */
+    public function findUpcomingForUser(Utilisateur $user): array
+    {
+        return $this->createQueryBuilder('c')
+            ->innerJoin('c.participes', 'p')
+            ->where('p.utilisateur = :user')
+            ->andWhere("c.statut IN ('disponible', 'confirmé')")
+            ->andWhere('c.dateDepart >= :today')
+            ->setParameter('user', $user)
+            ->setParameter('today', new \DateTime())
+            ->orderBy('c.dateDepart', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }

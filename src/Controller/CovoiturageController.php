@@ -23,6 +23,7 @@ use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use OpenApi\Attributes as OA;
+use Symfony\Component\Mailer\MailerInterface; // Ajout pour l'envoi d'e-mails
 
 #[Route('/api/covoiturage')]
 #[OA\Tag(name: 'Covoiturage')]
@@ -312,4 +313,87 @@ class CovoiturageController extends AbstractController
             return new JsonResponse(['message' => 'Erreur interne : ' . $e->getMessage()], JsonResponse::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
+
+    // ===================================================================
+    // DÉBUT DES AJOUTS : NOUVELLES MÉTHODES POUR L'ANNULATION
+    // ===================================================================
+
+    /**
+     * Récupère les covoiturages à venir pour l'utilisateur connecté.
+     */
+    #[OA\Response(response: 200, description: "Liste des covoiturages à venir.")]
+    #[Route('/mes-covoiturages', name: 'app_covoiturage_mes_covoiturages', methods: ['GET'])]
+    public function mesCovoiturages(CovoiturageRepository $repo): JsonResponse
+    {
+        /** @var \App\Entity\Utilisateur $user */
+        $user = $this->getUser();
+        if (!$user) {
+            return new JsonResponse(['message' => 'Utilisateur non connecté.'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        $covoiturages = $repo->findUpcomingForUser($user);
+
+        return $this->json($covoiturages, 200, [], ['groups' => 'covoiturage:read']);
+    }
+
+    /**
+     * Annule la participation à un covoiturage (passager) ou le covoiturage entier (chauffeur).
+     */
+    #[OA\Response(response: 200, description: "Annulation réussie.")]
+    #[OA\Response(response: 403, description: "Action non autorisée.")]
+    #[OA\Response(response: 404, description: "Covoiturage non trouvé.")]
+    #[Route('/{id}/annuler', name: 'app_covoiturage_annuler', methods: ['DELETE'])]
+    public function annuler(Covoiturage $covoiturage, EntityManagerInterface $em, MailerInterface $mailer): JsonResponse
+    {
+        /** @var \App\Entity\Utilisateur $user */
+        $user = $this->getUser();
+        if (!$user) {
+            return new JsonResponse(['message' => 'Utilisateur non connecté.'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        if (!in_array($covoiturage->getStatut(), ['disponible', 'confirmé'])) {
+             return new JsonResponse(['message' => 'Ce covoiturage ne peut plus être annulé.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        // On cherche le chauffeur via une méthode helper de l'entité
+        $chauffeur = $covoiturage->getChauffeur();
+
+        // CAS 1 : L'utilisateur est le CHAUFFEUR
+        if ($chauffeur === $user) {
+            $passagersParticipations = $em->getRepository(Participe::class)->findBy(['covoiturage' => $covoiturage]);
+
+            foreach ($passagersParticipations as $participation) {
+                $passager = $participation->getUtilisateur();
+                if ($passager !== $user) {
+                    $passager->setCredits($passager->getCredits() + $covoiturage->getPrixPersonne());
+                    // ICI : Vous pouvez ajouter le code pour envoyer l'e-mail d'annulation au $passager
+                    $em->remove($participation);
+                }
+            }
+            
+            $covoiturage->setStatut('annulé');
+            $user->setCredits($user->getCredits() + 2); // Remboursement des frais de création
+
+            $em->flush();
+            return new JsonResponse(['message' => 'Covoiturage annulé. Les passagers ont été notifiés et remboursés.'], Response::HTTP_OK);
+        }
+        
+        // CAS 2 : L'utilisateur est un PASSAGER
+        $participationPassager = $em->getRepository(Participe::class)->findOneBy(['covoiturage' => $covoiturage, 'utilisateur' => $user]);
+
+        if ($participationPassager) {
+            $user->setCredits($user->getCredits() + $covoiturage->getPrixPersonne());
+            $covoiturage->setNbPlace($covoiturage->getNbPlace() + 1);
+            $em->remove($participationPassager);
+            
+            $em->flush();
+            return new JsonResponse(['message' => 'Votre participation a été annulée et vos crédits remboursés.'], Response::HTTP_OK);
+        }
+
+        return new JsonResponse(['message' => 'Vous n\'êtes pas autorisé à effectuer cette action.'], Response::HTTP_FORBIDDEN);
+    }
+    
+    // ===================================================================
+    // FIN DES AJOUTS
+    // ===================================================================
 }

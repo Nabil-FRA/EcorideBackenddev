@@ -13,7 +13,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Annotation\Route;
-use OpenApi\Attributes as OA; // MODIFICATION ICI
+use OpenApi\Attributes as OA;
 
 #[Route('/api', name: 'api_')]
 class SecurityController extends AbstractController
@@ -27,7 +27,7 @@ class SecurityController extends AbstractController
 
     #[OA\Tag(name: "Authentification")]
     #[OA\Summary("Crée un nouvel utilisateur (client ou employé).")]
-    #[OA\Description("Cette route permet d'enregistrer un nouvel utilisateur en fournissant un nom, un prénom, un email et un mot de passe.")]
+    #[OA\Description("Cette route permet d'enregistrer un nouvel utilisateur en fournissant un nom, un prénom, un email, un mot de passe et optionnellement un rôle.")]
     #[OA\RequestBody(
         description: "Données de l'utilisateur pour l'inscription",
         required: true,
@@ -128,6 +128,7 @@ class SecurityController extends AbstractController
 
     #[OA\Tag(name: "Authentification")]
     #[OA\Summary("Connecte un utilisateur et retourne un token API.")]
+    #[OA\Description("Cette route permet à un utilisateur de se connecter en utilisant son email et son mot de passe pour recevoir un token d'authentification.")]
     #[OA\RequestBody(
         description: "Identifiants de l'utilisateur pour la connexion",
         required: true,
@@ -212,6 +213,7 @@ class SecurityController extends AbstractController
 
     #[OA\Tag(name: "Authentification")]
     #[OA\Summary("Démarre le processus de réinitialisation de mot de passe.")]
+    #[OA\Description("Cette route permet de demander la réinitialisation d'un mot de passe. Un email contenant un lien de réinitialisation sera envoyé à l'adresse fournie.")]
     #[OA\RequestBody(
         description: "Email de l'utilisateur pour lequel réinitialiser le mot de passe",
         required: true,

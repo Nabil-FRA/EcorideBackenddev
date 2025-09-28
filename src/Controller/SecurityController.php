@@ -13,7 +13,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Annotation\Route;
-use OpenApi\Annotations as OA;
+use OpenApi\Attributes as OA; // MODIFICATION ICI
 
 #[Route('/api', name: 'api_')]
 class SecurityController extends AbstractController
@@ -25,34 +25,34 @@ class SecurityController extends AbstractController
         $this->entityManager = $entityManager;
     }
 
-    /**
-     * @OA\Tag(name="Authentification")
-     * @OA\Summary("Crée un nouvel utilisateur (client ou employé).")
-     * @OA\RequestBody(
-     * description="Données de l'utilisateur pour l'inscription",
-     * required=true,
-     * @OA\JsonContent(
-     * type="object",
-     * @OA\Property(property="nom", type="string", example="Martin"),
-     * @OA\Property(property="prenom", type="string", example="Sophie"),
-     * @OA\Property(property="email", type="string", format="email", example="sophie.martin@example.com"),
-     * @OA\Property(property="password", type="string", format="password", example="MotDePasseSecure123"),
-     * @OA\Property(property="role", type="string", example="client", description="Optionnel, 'client' par défaut.")
-     * )
-     * )
-     * @OA\Response(
-     * response=201,
-     * description="Utilisateur créé avec succès. Retourne les informations de l'utilisateur et son token API."
-     * )
-     * @OA\Response(
-     * response=409,
-     * description="Conflit, l'email existe déjà."
-     * )
-     * @OA\Response(
-     * response=400,
-     * description="Données invalides ou manquantes."
-     * )
-     */
+    #[OA\Tag(name: "Authentification")]
+    #[OA\Summary("Crée un nouvel utilisateur (client ou employé).")]
+    #[OA\RequestBody(
+        description: "Données de l'utilisateur pour l'inscription",
+        required: true,
+        content: new OA\JsonContent(
+            type: 'object',
+            properties: [
+                new OA\Property(property: 'nom', type: 'string', example: 'Martin'),
+                new OA\Property(property: 'prenom', type: 'string', example: 'Sophie'),
+                new OA\Property(property: 'email', type: 'string', format: 'email', example: 'sophie.martin@example.com'),
+                new OA\Property(property: 'password', type: 'string', format: 'password', example: 'MotDePasseSecure123'),
+                new OA\Property(property: 'role', type: 'string', example: 'client', description: "Optionnel, 'client' par défaut.")
+            ]
+        )
+    )]
+    #[OA\Response(
+        response: 201,
+        description: "Utilisateur créé avec succès."
+    )]
+    #[OA\Response(
+        response: 409,
+        description: "Conflit, l'email existe déjà."
+    )]
+    #[OA\Response(
+        response: 400,
+        description: "Données invalides ou manquantes."
+    )]
     #[Route('/register', name: 'register', methods: ['POST'])]
     public function register(
         Request $request,
@@ -125,35 +125,35 @@ class SecurityController extends AbstractController
     }
 
 
-    /**
-     * @OA\Tag(name="Authentification")
-     * @OA\Summary("Connecte un utilisateur et retourne un token API.")
-     * @OA\RequestBody(
-     * description="Identifiants de l'utilisateur pour la connexion",
-     * required=true,
-     * @OA\JsonContent(
-     * type="object",
-     * @OA\Property(property="email", type="string", example="jean.dupont@test.com"),
-     * @OA\Property(property="password", type="string", format="password", example="password123")
-     * )
-     * )
-     * @OA\Response(
-     * response=200,
-     * description="Connexion réussie"
-     * )
-     * @OA\Response(
-     * response=401,
-     * description="Identifiants invalides (mot de passe incorrect)"
-     * )
-     * @OA\Response(
-     * response=404,
-     * description="Utilisateur inconnu"
-     * )
-     * @OA\Response(
-     * response=403,
-     * description="Compte désactivé ou sans rôle attribué"
-     * )
-     */
+    #[OA\Tag(name: "Authentification")]
+    #[OA\Summary("Connecte un utilisateur et retourne un token API.")]
+    #[OA\RequestBody(
+        description: "Identifiants de l'utilisateur pour la connexion",
+        required: true,
+        content: new OA\JsonContent(
+            type: 'object',
+            properties: [
+                new OA\Property(property: 'email', type: 'string', example: 'jean.dupont@test.com'),
+                new OA\Property(property: 'password', type: 'string', format: 'password', example: 'password123')
+            ]
+        )
+    )]
+    #[OA\Response(
+        response: 200,
+        description: "Connexion réussie"
+    )]
+    #[OA\Response(
+        response: 401,
+        description: "Identifiants invalides"
+    )]
+    #[OA\Response(
+        response: 404,
+        description: "Utilisateur inconnu"
+    )]
+    #[OA\Response(
+        response: 403,
+        description: "Compte désactivé"
+    )]
     #[Route('/login', name: 'api_login', methods: ['POST'])]
     public function login(
         Request $request,
@@ -209,26 +209,26 @@ class SecurityController extends AbstractController
     }
 
 
-    /**
-     * @OA\Tag(name="Authentification")
-     * @OA\Summary("Démarre le processus de réinitialisation de mot de passe.")
-     * @OA\RequestBody(
-     * description="Email de l'utilisateur pour lequel réinitialiser le mot de passe",
-     * required=true,
-     * @OA\JsonContent(
-     * type="object",
-     * @OA\Property(property="email", type="string", format="email", example="sophie.martin@example.com")
-     * )
-     * )
-     * @OA\Response(
-     * response=200,
-     * description="Email de réinitialisation envoyé avec succès."
-     * )
-     * @OA\Response(
-     * response=404,
-     * description="Utilisateur introuvable"
-     * )
-     */
+    #[OA\Tag(name: "Authentification")]
+    #[OA\Summary("Démarre le processus de réinitialisation de mot de passe.")]
+    #[OA\RequestBody(
+        description: "Email de l'utilisateur pour lequel réinitialiser le mot de passe",
+        required: true,
+        content: new OA\JsonContent(
+            type: 'object',
+            properties: [
+                new OA\Property(property: 'email', type: 'string', format: 'email', example: 'sophie.martin@example.com')
+            ]
+        )
+    )]
+    #[OA\Response(
+        response: 200,
+        description: "Email de réinitialisation envoyé avec succès."
+    )]
+    #[OA\Response(
+        response: 404,
+        description: "Utilisateur introuvable"
+    )]
     #[Route('/reset-password', name: 'reset_password', methods: ['POST'])]
     public function resetPassword(Request $request, UtilisateurRepository $utilisateurRepository, \Swift_Mailer $mailer): JsonResponse
     {

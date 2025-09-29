@@ -65,10 +65,6 @@ class Covoiturage
         $this->participes = new ArrayCollection();
     }
 
-    // --------------------
-    // GETTERS / SETTERS (votre code existant, inchangé)
-    // --------------------
-
     public function getId(): ?int
     {
         return $this->id;
@@ -190,9 +186,12 @@ class Covoiturage
         return $this;
     }
 
+
+
     public function removeUtilise(Utilise $utilise): self
     {
         if ($this->utilise->removeElement($utilise)) {
+            // set the owning side to null (unless already changed)
             if ($utilise->getCovoiturage() === $this) {
                 $utilise->setCovoiturage(null);
             }
@@ -220,6 +219,7 @@ class Covoiturage
     public function removeParticipe(Participe $participe): self
     {
         if ($this->participes->removeElement($participe)) {
+            // set the owning side to null (unless already changed)
             if ($participe->getCovoiturage() === $this) {
                 $participe->setCovoiturage(null);
             }
@@ -227,19 +227,13 @@ class Covoiturage
         return $this;
     }
 
-    // ===================================================================
-    // MÉTHODE AJOUTÉE (requise par CovoiturageController)
-    // ===================================================================
-
     /**
      * Méthode "helper" pour retrouver facilement l'utilisateur qui est le chauffeur.
      * Cette logique suppose que le premier participant enregistré est le chauffeur.
-     * Adaptez-la si votre logique métier est différente.
      */
     public function getChauffeur(): ?Utilisateur
     {
         if (!$this->getParticipes()->isEmpty()) {
-            // Renvoie l'utilisateur de la première entité Participe de la collection
             return $this->getParticipes()->first()->getUtilisateur();
         }
 

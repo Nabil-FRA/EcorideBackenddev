@@ -212,7 +212,8 @@ class CovoiturageController extends AbstractController
             ->setDateArrivee(new \DateTime($data['dateArrivee']))
             ->setHeureArrivee(new \DateTime($data['heureArrivee']))
             ->setNbPlace($data['nbPlace'])
-            ->setStatut($data['statut']);
+            // ✅ CORRECTION APPLIQUÉE ICI 
+            ->setStatut(strtolower($data['statut']));
 
         $participe = new Participe();
         $participe->setUtilisateur($user);

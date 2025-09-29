@@ -1,0 +1,23 @@
+{# templates/emails/annulation_covoiturage.html.twig #}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Annulation de votre covoiturage EcoRide</title>
+</head>
+<body>
+    <h3>Bonjour {{ passager.pseudo }} !</h3>
+
+    <p>
+        Nous sommes au regret de vous informer que le covoiturage pour le trajet
+        <strong>{{ covoiturage.lieuDepart }} - {{ covoiturage.lieuArrivee }}</strong>
+        prévu le {{ covoiturage.dateDepart|date('d/m/Y à H:i') }} a été annulé par le chauffeur.
+    </p>
+    <p>
+        Votre compte a bien évidemment été re-crédité.
+    </p>
+    <p>
+        À bientôt sur <a href="{{ url('app_accueil') }}">EcoRide</a> ! {# 'app_accueil' est le nom de votre route pour la page d'accueil #}
+    </p>
+</body>
+</html>

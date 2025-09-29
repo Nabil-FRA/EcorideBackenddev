@@ -5,12 +5,6 @@ namespace App\Controller;
 use App\Entity\Covoiturage;
 use App\Entity\Utilisateur;
 use App\Entity\Participe;
-use App\Entity\ParametreUtilisateur;
-use App\Entity\Dispose;
-use App\Entity\Depose;
-use App\Entity\Voiture;
-use App\Entity\Configuration;
-use App\Entity\Detient;
 use App\Entity\Gere;
 use App\Entity\Utilise;
 use App\Repository\CovoiturageRepository;
@@ -51,10 +45,7 @@ class CovoiturageController extends AbstractController
     #[OA\Parameter(name: 'depart', in: 'query', description: "Lieu de départ", required: true)]
     #[OA\Parameter(name: 'arrivee', in: 'query', description: "Lieu d'arrivée", required: true)]
     #[OA\Parameter(name: 'date', in: 'query', description: "Date du voyage (YYYY-MM-DD)", required: true)]
-    #[OA\Response(
-        response: 200,
-        description: "Retourne les covoiturages correspondants."
-    )]
+    #[OA\Response(response: 200, description: "Retourne les covoiturages correspondants.")]
     #[OA\Response(response: 400, description: "Paramètres manquants ou format de date invalide.")]
     #[OA\Response(response: 404, description: "Aucun covoiturage disponible.")]
     #[Route('/search', name: 'app_covoiturage_search', methods: ['GET'])]
@@ -140,9 +131,6 @@ class CovoiturageController extends AbstractController
     /**
      * Récupère les détails complets d'un covoiturage.
      */
-    #[OA\Parameter(name: 'id', in: 'path', description: "L'ID du covoiturage", required: true)]
-    #[OA\Response(response: 200, description: "Détails du covoiturage.")]
-    #[OA\Response(response: 404, description: "Covoiturage non trouvé.")]
     #[Route('/details/{id}', name: 'app_covoiturage_detail', methods: ['GET'])]
     public function getCovoiturageDetail(int $id, CovoiturageRepository $covoiturageRepository, SerializerInterface $serializer): JsonResponse
     {
@@ -192,14 +180,6 @@ class CovoiturageController extends AbstractController
     /**
      * Crée un nouveau covoiturage.
      */
-    #[OA\RequestBody(
-        description: "Données pour la création d'un covoiturage",
-        required: true
-    )]
-    #[OA\Response(response: 201, description: "Covoiturage créé avec succès.")]
-    #[OA\Response(response: 400, description: "Données incomplètes ou voiture non enregistrée.")]
-    #[OA\Response(response: 402, description: "Crédits insuffisants.")]
-    #[OA\Response(response: 403, description: "Accès refusé.")]
     #[Route('/creer', name: 'covoiturage_creer', methods: ['POST'])]
     public function creerCovoiturage(Request $request, EntityManagerInterface $entityManager): Response
     {
@@ -255,12 +235,6 @@ class CovoiturageController extends AbstractController
     /**
      * Filtre les résultats d'une recherche précédente.
      */
-    #[OA\Parameter(name: 'ecologique', in: 'query', description: "Filtrer les véhicules écologiques (1 pour oui)")]
-    #[OA\Parameter(name: 'prixMax', in: 'query', description: "Prix maximum du trajet")]
-    #[OA\Parameter(name: 'dureeMax', in: 'query', description: "Durée maximum en minutes")]
-    #[OA\Parameter(name: 'noteMin', in: 'query', description: "Note minimum du chauffeur")]
-    #[OA\Response(response: 200, description: "Retourne les covoiturages filtrés.")]
-    #[OA\Response(response: 400, description: "Aucun résultat de recherche en session.")]
     #[Route('/filter', name: 'app_covoiturage_filter', methods: ['GET'])]
     public function filter(Request $request, SessionInterface $session): JsonResponse
     {
@@ -293,38 +267,34 @@ class CovoiturageController extends AbstractController
     }
 
     /**
-     * Récupère les covoiturages à venir pour l'utilisateur connecté.
+     * Récupère les covoiturages (passés et à venir) pour l'utilisateur connecté.
      */
-    #[OA\Response(response: 200, description: "Liste des covoiturages à venir.")]
     #[Route('/mes-covoiturages', name: 'app_covoiturage_mes_covoiturages', methods: ['GET'])]
-public function mesCovoiturages(CovoiturageRepository $repo, EntityManagerInterface $entityManager): JsonResponse
-{
-    /** @var \App\Entity\Utilisateur $userFromToken */
-    $userFromToken = $this->getUser();
-    if (!$userFromToken) {
-        return new JsonResponse(['message' => 'Utilisateur non connecté.'], Response::HTTP_UNAUTHORIZED);
+    public function mesCovoiturages(CovoiturageRepository $repo, EntityManagerInterface $entityManager): JsonResponse
+    {
+        /** @var \App\Entity\Utilisateur $userFromToken */
+        $userFromToken = $this->getUser();
+        if (!$userFromToken) {
+            return new JsonResponse(['message' => 'Utilisateur non connecté.'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        // CORRECTION : On recharge l'utilisateur complet depuis la base de données
+        // pour s'assurer que Doctrine peut correctement utiliser ses relations.
+        $user = $entityManager->getRepository(Utilisateur::class)->find($userFromToken->getId());
+        if (!$user) {
+            // Sécurité supplémentaire si l'utilisateur du token n'existe plus en BDD
+            return new JsonResponse(['message' => 'Utilisateur non trouvé.'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        // On utilise maintenant l'utilisateur complet et "géré" pour la requête
+        $covoiturages = $repo->findAllForUser($user);
+
+        return $this->json($covoiturages, 200, [], ['groups' => 'covoiturage:read']);
     }
-
-    // CORRECTION : On recharge l'utilisateur complet depuis la base de données
-    // pour s'assurer que Doctrine peut correctement utiliser ses relations.
-    $user = $entityManager->getRepository(Utilisateur::class)->find($userFromToken->getId());
-    if (!$user) {
-        // Sécurité supplémentaire si l'utilisateur du token n'existe plus en BDD
-        return new JsonResponse(['message' => 'Utilisateur non trouvé.'], Response::HTTP_UNAUTHORIZED);
-    }
-
-    // On utilise maintenant l'utilisateur complet et "géré" pour la requête
-    $covoiturages = $repo->findAllForUser($user);
-
-    return $this->json($covoiturages, 200, [], ['groups' => 'covoiturage:read']);
-}
 
     /**
      * Annule la participation à un covoiturage (passager) ou le covoiturage entier (chauffeur).
      */
-    #[OA\Response(response: 200, description: "Annulation réussie.")]
-    #[OA\Response(response: 403, description: "Action non autorisée.")]
-    #[OA\Response(response: 404, description: "Covoiturage non trouvé.")]
     #[Route('/{id}/annuler', name: 'app_covoiturage_annuler', methods: ['DELETE'])]
     public function annuler(Covoiturage $covoiturage, EntityManagerInterface $em, MailerInterface $mailer): JsonResponse
     {

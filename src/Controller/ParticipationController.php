@@ -49,6 +49,7 @@ class ParticipationController extends AbstractController
     #[OA\Response(response: 402, description: "Crédits insuffisants.")]
     #[OA\Response(response: 403, description: "Seuls les passagers peuvent participer.")]
     #[OA\Response(response: 404, description: "Covoiturage introuvable.")]
+    #[OA\Response(response: 409, description: "L'utilisateur participe déjà à ce covoiturage.")]
     #[Route('/{id}/participer', name: 'covoiturage_participer', methods: ['POST'])]
     public function participer(int $id, EntityManagerInterface $entityManager, Request $request, MongoDBService $mongoDBService): Response
     {
@@ -66,6 +67,16 @@ class ParticipationController extends AbstractController
         $covoiturage = $entityManager->getRepository(Covoiturage::class)->find($id);
         if (!$covoiturage) {
             return $this->json(['message' => 'Covoiturage introuvable'], Response::HTTP_NOT_FOUND);
+        }
+        
+        // CORRECTION 1 : Vérifier si l'utilisateur participe déjà à ce covoiturage
+        $participationExistante = $entityManager->getRepository(Participe::class)->findOneBy([
+            'utilisateur' => $utilisateur,
+            'covoiturage' => $covoiturage
+        ]);
+
+        if ($participationExistante) {
+            return $this->json(['message' => 'Vous participez déjà à ce covoiturage'], Response::HTTP_CONFLICT); // 409 Conflict
         }
 
         if ($covoiturage->getNbPlace() <= 0) {
@@ -93,6 +104,7 @@ class ParticipationController extends AbstractController
         $db = $mongoDBService->getDatabase();
         $collection = $db->selectCollection('participations');
 
+        // CORRECTION 2 : Vérifier que les objets DateTime ne sont pas null avant d'appeler format()
         $participationData = [
             'utilisateur' => [
                 'id' => $utilisateur->getId(),
@@ -104,8 +116,10 @@ class ParticipationController extends AbstractController
                 'id' => $covoiturage->getId(),
                 'lieuDepart' => $covoiturage->getLieuDepart(),
                 'lieuArrivee' => $covoiturage->getLieuArrivee(),
-                'dateDepart' => $covoiturage->getDateDepart()->format('Y-m-d'),
-                'heureDepart' => $covoiturage->getHeureDepart()->format('H:i:s'),
+                'dateDepart' => $covoiturage->getDateDepart() ? $covoiturage->getDateDepart()->format('Y-m-d') : null,
+                'heureDepart' => $covoiturage->getHeureDepart() ? $covoiturage->getHeureDepart()->format('H:i:s') : null,
+                // On peut aussi ajouter le prix pour l'historique MongoDB
+                'prixPersonne' => $covoiturage->getPrixPersonne() 
             ],
             'creditsUtilises' => 2,
             'dateParticipation' => (new \DateTime())->format('Y-m-d H:i:s')

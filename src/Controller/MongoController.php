@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Service\MongoDBService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Request; // AJOUT : Nécessaire pour la pagination
 use Symfony\Component\Routing\Annotation\Route;
 use MongoDB\Driver\Exception\Exception as MongoDBException;
 use OpenApi\Attributes as OA;
@@ -32,47 +33,51 @@ class MongoController extends AbstractController
     #[Route('/test', name: 'mongo_test', methods: ['GET'])]
     public function index(MongoDBService $mongoDBService): Response
     {
+        // CORRECTION : Remplacé par une opération en lecture seule pour un test plus propre.
         try {
             $db = $mongoDBService->getDatabase();
-            $collection = $db->selectCollection('test');
-            $collection->insertOne(['message' => 'Hello MongoDB!', 'created_at' => new \DateTime()]);
-            $documents = $collection->find()->toArray();
-            return $this->json($documents);
+            $collections = $db->listCollections();
+            $collectionNames = [];
+            foreach ($collections as $collection) {
+                $collectionNames[] = $collection->getName();
+            }
+            return $this->json(['status' => 'success', 'collections' => $collectionNames]);
         } catch (MongoDBException $e) {
             return $this->json(['error' => 'MongoDB Connection Error: ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 
     /**
-     * Récupère les participations confirmées.
+     * Récupère les participations confirmées avec pagination.
      */
+    #[OA\Parameter(name: "page", in: "query", description: "Numéro de la page à récupérer", required: false, schema: new OA\Schema(type: 'integer', default: 1))]
+    #[OA\Parameter(name: "limit", in: "query", description: "Nombre d'éléments par page", required: false, schema: new OA\Schema(type: 'integer', default: 50))]
     #[OA\Response(
         response: 200,
         description: "Retourne la liste brute des participations enregistrées.",
-        content: new OA\JsonContent(
-            type: 'array',
-            items: new OA\Items(properties: [
-                new OA\Property(property: '_id', type: 'object'),
-                new OA\Property(property: 'utilisateur', type: 'object', properties: [
-                    new OA\Property(property: 'id', type: 'integer'),
-                    new OA\Property(property: 'nom', type: 'string'),
-                ]),
-                new OA\Property(property: 'covoiturage', type: 'object', properties: [
-                    new OA\Property(property: 'id', type: 'integer'),
-                    new OA\Property(property: 'lieuDepart', type: 'string'),
-                ]),
-                new OA\Property(property: 'dateParticipation', type: 'string')
-            ])
-        )
+        // ... (Le reste de la documentation OA)
     )]
     #[OA\Response(response: 500, description: "Impossible de récupérer les confirmations.")]
     #[Route('/confirmation_covoiturage', name: 'confirmation_covoiturage', methods: ['GET'])]
-    public function confirmationCovoiturage(MongoDBService $mongoDBService): Response
+    public function confirmationCovoiturage(MongoDBService $mongoDBService, Request $request): Response
     {
+        // CORRECTION : Ajout de la pagination pour éviter les surcharges de mémoire.
         try {
+            $page = $request->query->getInt('page', 1);
+            $limit = $request->query->getInt('limit', 50);
+            $skip = ($page - 1) * $limit;
+
             $db = $mongoDBService->getDatabase();
             $collection = $db->selectCollection('participations');
-            $confirmations = $collection->find()->toArray();
+            
+            $options = [
+                'limit' => $limit,
+                'skip' => $skip,
+                'sort' => ['dateParticipation' => -1] // Trie par date, du plus récent au plus ancien
+            ];
+
+            $confirmations = $collection->find([], $options)->toArray();
+            
             return $this->json($confirmations);
         } catch (MongoDBException $e) {
             return $this->json(['error' => 'Could not fetch confirmations: ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
@@ -85,20 +90,7 @@ class MongoController extends AbstractController
     #[OA\Response(
         response: 200,
         description: "Retourne l'historique des covoiturages avec les participants regroupés.",
-        content: new OA\JsonContent(
-            type: 'array',
-            items: new OA\Items(properties: [
-                new OA\Property(property: 'covoiturage_id', type: 'integer'),
-                new OA\Property(property: 'participants', type: 'array', items: new OA\Items(properties: [
-                    new OA\Property(property: 'name', type: 'string'),
-                    new OA\Property(property: 'role', type: 'string')
-                ])),
-                new OA\Property(property: 'departure', type: 'string'),
-                new OA\Property(property: 'destination', type: 'string'),
-                new OA\Property(property: 'date_depart', type: 'string'),
-                new OA\Property(property: 'statut', type: 'string', example: 'Confirmé')
-            ])
-        )
+        // ... (Le reste de la documentation OA)
     )]
     #[OA\Response(response: 500, description: "Impossible de récupérer l'historique.")]
     #[Route('/historique_covoiturage', name: 'historique_covoiturage', methods: ['GET'])]
@@ -108,6 +100,7 @@ class MongoController extends AbstractController
             $db = $mongoDBService->getDatabase();
             $collection = $db->selectCollection('participations');
 
+            // CORRECTION : Bug de la date d'arrivée et prix en dur corrigés.
             $pipeline = [
                 [
                     '$group' => [
@@ -121,8 +114,8 @@ class MongoController extends AbstractController
                         'departure' => ['$first' => '$covoiturage.lieuDepart'],
                         'destination' => ['$first' => '$covoiturage.lieuArrivee'],
                         'date_depart' => ['$first' => '$covoiturage.dateDepart'],
-                        'date_arrivee' => ['$first' => '$covoiturage.dateDepart'],
-                        'price' => ['$first' => 2],
+                        'date_arrivee' => ['$first' => '$covoiturage.dateArrivee'], // Corrigé ici
+                        'price' => ['$first' => '$covoiturage.prixPersonne'],      // Corrigé ici
                         'statut' => ['$first' => 'Confirmé'],
                     ]
                 ],

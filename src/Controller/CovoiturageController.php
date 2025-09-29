@@ -297,18 +297,27 @@ class CovoiturageController extends AbstractController
      */
     #[OA\Response(response: 200, description: "Liste des covoiturages à venir.")]
     #[Route('/mes-covoiturages', name: 'app_covoiturage_mes_covoiturages', methods: ['GET'])]
-    public function mesCovoiturages(CovoiturageRepository $repo): JsonResponse
-    {
-        /** @var \App\Entity\Utilisateur $user */
-        $user = $this->getUser();
-        if (!$user) {
-            return new JsonResponse(['message' => 'Utilisateur non connecté.'], Response::HTTP_UNAUTHORIZED);
-        }
-
-        $covoiturages = $repo->findUpcomingForUser($user);
-
-        return $this->json($covoiturages, 200, [], ['groups' => 'covoiturage:read']);
+public function mesCovoiturages(CovoiturageRepository $repo, EntityManagerInterface $entityManager): JsonResponse
+{
+    /** @var \App\Entity\Utilisateur $userFromToken */
+    $userFromToken = $this->getUser();
+    if (!$userFromToken) {
+        return new JsonResponse(['message' => 'Utilisateur non connecté.'], Response::HTTP_UNAUTHORIZED);
     }
+
+    // CORRECTION : On recharge l'utilisateur complet depuis la base de données
+    // pour s'assurer que Doctrine peut correctement utiliser ses relations.
+    $user = $entityManager->getRepository(Utilisateur::class)->find($userFromToken->getId());
+    if (!$user) {
+        // Sécurité supplémentaire si l'utilisateur du token n'existe plus en BDD
+        return new JsonResponse(['message' => 'Utilisateur non trouvé.'], Response::HTTP_UNAUTHORIZED);
+    }
+
+    // On utilise maintenant l'utilisateur complet et "géré" pour la requête
+    $covoiturages = $repo->findAllForUser($user);
+
+    return $this->json($covoiturages, 200, [], ['groups' => 'covoiturage:read']);
+}
 
     /**
      * Annule la participation à un covoiturage (passager) ou le covoiturage entier (chauffeur).

@@ -142,7 +142,7 @@ class CovoiturageRepository extends ServiceEntityRepository
         return $this->createQueryBuilder('c')
             ->innerJoin('c.participes', 'p')
             ->where('p.utilisateur = :user')
-            ->andWhere("c.statut IN ('disponible', 'confirmé')")
+            ->andWhere("c.statut IN ('disponible', 'confirmé', 'complet')")
             ->andWhere('c.dateDepart >= :today')
             ->setParameter('user', $user)
             ->setParameter('today', new \DateTime())

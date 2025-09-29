@@ -23,7 +23,8 @@ use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use OpenApi\Attributes as OA;
-use Symfony\Component\Mailer\MailerInterface; // Ajout pour l'envoi d'e-mails
+use Symfony\Component\Mailer\MailerInterface;
+use Symfony\Component\Mime\Email;
 
 #[Route('/api/covoiturage')]
 #[OA\Tag(name: 'Covoiturage')]
@@ -52,23 +53,7 @@ class CovoiturageController extends AbstractController
     #[OA\Parameter(name: 'date', in: 'query', description: "Date du voyage (YYYY-MM-DD)", required: true)]
     #[OA\Response(
         response: 200,
-        description: "Retourne les covoiturages correspondants.",
-        content: new OA\JsonContent(
-            type: 'array',
-            items: new OA\Items(
-                example: [
-                    "id" => 1,
-                    "chauffeur" => ["pseudo" => "JohnD", "photo" => "base64...", "note" => 4.8],
-                    "placesRestantes" => 2,
-                    "prix" => 25.50,
-                    "dateDepart" => "2023-10-01",
-                    "heureDepart" => "08:00",
-                    "dateArrivee" => "2023-10-01",
-                    "heureArrivee" => "12:30",
-                    "ecologique" => true
-                ]
-            )
-        )
+        description: "Retourne les covoiturages correspondants."
     )]
     #[OA\Response(response: 400, description: "Paramètres manquants ou format de date invalide.")]
     #[OA\Response(response: 404, description: "Aucun covoiturage disponible.")]
@@ -209,14 +194,7 @@ class CovoiturageController extends AbstractController
      */
     #[OA\RequestBody(
         description: "Données pour la création d'un covoiturage",
-        required: true,
-        content: new OA\JsonContent(
-            example: [
-                "lieuDepart" => "Paris", "lieuArrivee" => "Marseille", "prixPersonne" => 30, "voitureId" => 1,
-                "dateDepart" => "2023-11-15", "heureDepart" => "09:00", "dateArrivee" => "2023-11-15",
-                "heureArrivee" => "17:00", "nbPlace" => 3, "statut" => "disponible"
-            ]
-        )
+        required: true
     )]
     #[OA\Response(response: 201, description: "Covoiturage créé avec succès.")]
     #[OA\Response(response: 400, description: "Données incomplètes ou voiture non enregistrée.")]
@@ -314,10 +292,6 @@ class CovoiturageController extends AbstractController
         }
     }
 
-    // ===================================================================
-    // DÉBUT DES AJOUTS : NOUVELLES MÉTHODES POUR L'ANNULATION
-    // ===================================================================
-
     /**
      * Récupère les covoiturages à venir pour l'utilisateur connecté.
      */
@@ -351,34 +325,48 @@ class CovoiturageController extends AbstractController
             return new JsonResponse(['message' => 'Utilisateur non connecté.'], Response::HTTP_UNAUTHORIZED);
         }
 
-        if (!in_array($covoiturage->getStatut(), ['disponible', 'confirmé'])) {
-             return new JsonResponse(['message' => 'Ce covoiturage ne peut plus être annulé.'], Response::HTTP_BAD_REQUEST);
+        if (!in_array($covoiturage->getStatut(), ['disponible', 'confirmé', 'complet'])) {
+            return new JsonResponse(['message' => 'Ce covoiturage ne peut plus être annulé.'], Response::HTTP_BAD_REQUEST);
         }
 
-        // On cherche le chauffeur via une méthode helper de l'entité
         $chauffeur = $covoiturage->getChauffeur();
 
-        // CAS 1 : L'utilisateur est le CHAUFFEUR
         if ($chauffeur === $user) {
-            $passagersParticipations = $em->getRepository(Participe::class)->findBy(['covoiturage' => $covoiturage]);
+            $participations = $em->getRepository(Participe::class)->findBy(['covoiturage' => $covoiturage]);
 
-            foreach ($passagersParticipations as $participation) {
+            foreach ($participations as $participation) {
                 $passager = $participation->getUtilisateur();
                 if ($passager !== $user) {
                     $passager->setCredits($passager->getCredits() + $covoiturage->getPrixPersonne());
-                    // ICI : Vous pouvez ajouter le code pour envoyer l'e-mail d'annulation au $passager
+
+                    $email = (new Email())
+                        ->from('support@ecoride.fr')
+                        ->to($passager->getEmail())
+                        ->subject('Annulation de votre covoiturage EcoRide')
+                        ->html("<p>Bonjour {$passager->getPseudo()},</p><p>Le covoiturage de <strong>{$covoiturage->getLieuDepart()}</strong> à <strong>{$covoiturage->getLieuArrivee()}</strong> prévu le {$covoiturage->getDateDepart()->format('d/m/Y')} a été annulé par le chauffeur. Vous avez été intégralement remboursé.</p>");
+                    
+                    $mailer->send($email);
+                    
                     $em->remove($participation);
                 }
             }
             
+            $participationChauffeur = $em->getRepository(Participe::class)->findOneBy(['covoiturage' => $covoiturage, 'utilisateur' => $user]);
+            if ($participationChauffeur) {
+                $em->remove($participationChauffeur);
+            }
+            
             $covoiturage->setStatut('annulé');
-            $user->setCredits($user->getCredits() + 2); // Remboursement des frais de création
+            $user->setCredits($user->getCredits() + 2); 
 
             $em->flush();
-            return new JsonResponse(['message' => 'Covoiturage annulé. Les passagers ont été notifiés et remboursés.'], Response::HTTP_OK);
+
+            return $this->json([
+                'message' => 'Covoiturage annulé. Les passagers ont été notifiés et remboursés.',
+                'covoiturage' => $covoiturage
+            ], 200, [], ['groups' => 'covoiturage:read']);
         }
         
-        // CAS 2 : L'utilisateur est un PASSAGER
         $participationPassager = $em->getRepository(Participe::class)->findOneBy(['covoiturage' => $covoiturage, 'utilisateur' => $user]);
 
         if ($participationPassager) {
@@ -387,13 +375,10 @@ class CovoiturageController extends AbstractController
             $em->remove($participationPassager);
             
             $em->flush();
-            return new JsonResponse(['message' => 'Votre participation a été annulée et vos crédits remboursés.'], Response::HTTP_OK);
+
+            return new JsonResponse(['message' => 'Votre participation a été annulée et vos crédits ont été remboursés.'], Response::HTTP_OK);
         }
 
-        return new JsonResponse(['message' => 'Vous n\'êtes pas autorisé à effectuer cette action.'], Response::HTTP_FORBIDDEN);
+        return new JsonResponse(['message' => 'Action non autorisée.'], Response::HTTP_FORBIDDEN);
     }
-    
-    // ===================================================================
-    // FIN DES AJOUTS
-    // ===================================================================
 }

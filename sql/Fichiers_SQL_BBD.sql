@@ -1,4 +1,4 @@
--- Creation de la base de donnees
+-- Création de la base de données
 CREATE DATABASE ecoride CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE ecoride;
 
@@ -52,7 +52,6 @@ CREATE TABLE covoiturage (
     statut VARCHAR(50) NOT NULL
 ) ENGINE=InnoDB;
 
-
 -- Table voiture
 CREATE TABLE voiture (
     id INT(11) AUTO_INCREMENT PRIMARY KEY,
@@ -60,13 +59,13 @@ CREATE TABLE voiture (
     immatriculation VARCHAR(20) NOT NULL UNIQUE,
     energie VARCHAR(50) NOT NULL,
     couleur VARCHAR(50) NOT NULL,
-    date_premiere_immatriculation DATE NOT NULL
+    date_premiere_immatriculation DATETIME NOT NULL
 ) ENGINE=InnoDB;
 
 -- Table marque
 CREATE TABLE marque (
     id INT(11) AUTO_INCREMENT PRIMARY KEY,
-    nom VARCHAR(50) NOT NULL UNIQUE
+    libelle VARCHAR(50) NOT NULL UNIQUE
 ) ENGINE=InnoDB;
 
 -- Table participe
@@ -78,10 +77,16 @@ CREATE TABLE participe (
     FOREIGN KEY (covoiturage_id) REFERENCES covoiturage(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-
 -- Table configuration
 CREATE TABLE configuration (
     id INT(11) AUTO_INCREMENT PRIMARY KEY
+) ENGINE=InnoDB;
+
+-- Table depose (liaison pour les avis)
+CREATE TABLE depose (
+    id INT(11) AUTO_INCREMENT PRIMARY KEY,
+    utilisateur_id INT(11) NOT NULL,
+    FOREIGN KEY (utilisateur_id) REFERENCES utilisateur(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- Table avis
@@ -91,15 +96,8 @@ CREATE TABLE avis (
     commentaire TEXT,
     note INT(1) NOT NULL,
     statut VARCHAR(50) NOT NULL,
-    FOREIGN KEY (depose_id) REFERENCES utilisateur(id) ON DELETE CASCADE
-) ENGINE=InnoDB;
-
-
--- Table depose
-CREATE TABLE depose (
-    id INT(11) AUTO_INCREMENT PRIMARY KEY,
-    utilisateur_id INT(11) NOT NULL,
-    FOREIGN KEY (utilisateur_id) REFERENCES utilisateur(id) ON DELETE CASCADE
+    -- NOTE : La clé étrangère référence maintenant 'depose(id)' et non plus 'utilisateur(id)'
+    FOREIGN KEY (depose_id) REFERENCES depose(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- Table parametre
@@ -108,7 +106,6 @@ CREATE TABLE parametre (
     propriete VARCHAR(100) NOT NULL UNIQUE,
     valeur TEXT NOT NULL
 ) ENGINE=InnoDB;
-
 
 -- Table dispose
 CREATE TABLE dispose (
@@ -119,7 +116,6 @@ CREATE TABLE dispose (
     FOREIGN KEY (configuration_id) REFERENCES configuration(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-
 -- Table detient
 CREATE TABLE detient (
     id INT(11) AUTO_INCREMENT PRIMARY KEY,
@@ -128,7 +124,6 @@ CREATE TABLE detient (
     FOREIGN KEY (voiture_id) REFERENCES voiture(id) ON DELETE CASCADE,
     FOREIGN KEY (marque_id) REFERENCES marque(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
-
 
 -- Table gere
 CREATE TABLE gere (
@@ -139,7 +134,6 @@ CREATE TABLE gere (
     FOREIGN KEY (voiture_id) REFERENCES voiture(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
-
 -- Table utilise
 CREATE TABLE utilise (
     id INT(11) AUTO_INCREMENT PRIMARY KEY,
@@ -149,12 +143,13 @@ CREATE TABLE utilise (
     FOREIGN KEY (covoiturage_id) REFERENCES covoiturage(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- Table parametre_utilisateur
 CREATE TABLE parametre_utilisateur (
-  id INT(11) AUTO_INCREMENT PRIMARY KEY,
-  utilisateur_id INT(11) NOT NULL,
-  configuration_id INT(11) NOT NULL,
-  FOREIGN KEY (utilisateur_id) REFERENCES utilisateur(id) ON DELETE CASCADE,
-  FOREIGN KEY (configuration_id) REFERENCES configuration(id) ON DELETE CASCADE
+    id INT(11) AUTO_INCREMENT PRIMARY KEY,
+    utilisateur_id INT(11) NOT NULL,
+    configuration_id INT(11) NOT NULL,
+    FOREIGN KEY (utilisateur_id) REFERENCES utilisateur(id) ON DELETE CASCADE,
+    FOREIGN KEY (configuration_id) REFERENCES configuration(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 
@@ -181,7 +176,8 @@ VALUES ('Client', 'EcoRide', 'Client@ecoride.com', '$2y$13$WDI/YZoU6aImkjCmxa3XB
 
 -- Liaison de l'utilisateur Client au role Client
 INSERT INTO possede (utilisateur_id, role_id)
-VALUES ((SELECT id FROM utilisateur WHERE email = 'client@ecoride.com'), (SELECT id FROM role WHERE libelle = 'client'));
+-- NOTE : L'email a été corrigé pour correspondre exactement à l'enregistrement (C majuscule)
+VALUES ((SELECT id FROM utilisateur WHERE email = 'Client@ecoride.com'), (SELECT id FROM role WHERE libelle = 'client'));
 
 ---------------------------------------------------------Création du Compte employé-----------------------------------------------------------------------
 -- Insertion du role employee

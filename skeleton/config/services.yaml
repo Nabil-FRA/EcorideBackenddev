@@ -1,0 +1,18 @@
+services:
+    # default configuration for services in *this* file
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/DependencyInjection/'
+            - '../src/Entity/'
+            - '../src/Kernel.php'
+
+    # Configuration du service MongoDB
+    App\Service\MongoDBService:
+        arguments:
+            $uri: '%env(MONGODB_URI)%'
+            $database: '%env(MONGODB_DB)%'
